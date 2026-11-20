@@ -12,6 +12,5 @@
 /desktop/
 /packages/
 /docs/
-# Linked worktrees, team notes and per-run harness output.
-/.wt/
+# Build caches, logs and per-run tool output.
 /target/

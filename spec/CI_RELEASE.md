@@ -19,8 +19,8 @@ Nothing is rebuilt to be released.
 
 | Channel | Source | Cadence | Gate |
 | --- | --- | --- | --- |
-| `nightly` | Latest `os/main` that passed nightly | Daily | Nightly lane green |
-| `beta` | A chosen nightly | Weekly | 72-hour soak clean, no open `main-red`, no performance regression |
+| `nightly` | Latest `os/main` that passed nightly | Daily | Nightly run green |
+| `beta` | A chosen nightly | Weekly | 72-hour soak clean, `main` green, no performance regression |
 | `stable` | A beta | Every 6 weeks | 2 weeks in beta with no blocker, upgrade and rollback tested from the previous stable |
 
 Promotion creates `release/<version>` on `os`, signs the images, publishes the
@@ -35,7 +35,7 @@ Security fixes use the same path with the beta wait waived.
 ## 9. When not to release
 
 - No release of any kind before M4. From M1 there are nightly images as CI artifacts, labelled as development builds.
-- No `beta` channel before M6. No `stable` channel before the M9 gate passes.
+- No `beta` channel before M6. No `stable` channel before the M9 exit test passes.
 - No first `stable` release before the outside-developer trial has happened: a developer who did not work on the project uses the published SDK and documentation for a task they bring, hits a permission denial, and resolves it from the documentation. The record lists every undocumented step, every request for broader authority, and every time an author had to help. Those findings become protocol changes while protocols are still provisional (`spec/ARCHITECTURE.md` section 4). This needs a human and does not block any milestone gate.
 - No tags or release notes on component repos, ever. They cause version sprawl with no user.
 - No release to fix something a package update can fix. Drivers and apps ship as packages on their own schedule.

@@ -8,7 +8,7 @@ component when a working slice calls for it.
 ## A. Build, tooling, bring-up (M0)
 
 - A01 Cargo workspace, pinned toolchain, custom target specs (x86_64, aarch64, riscv64)
-- A02 `tools/init.sh`, `tools/test.sh` (`--fast`, `--full`, `--component X`), `tools/size.sh`, `tools/qemu.sh`, `tools/bench.sh`
+- A02 `tools/init.sh`, `tools/test.sh` (`--fast`, `--full`, `--deep`, `--repo X`, `--guest NAME`), `tools/size.sh`, `tools/qemu.sh`, `tools/bench.sh`
 - A03 Image builder: GPT disk image, ESP, kernel, initial ramdisk of core servers
 - A04 QEMU runner with serial capture, timeout, exit-code device, screendump
 - A05 Host test harness for `kernel-core` (std build), Miri and loom jobs
@@ -18,7 +18,7 @@ component when a working slice calls for it.
 - A09 Symbolizer and panic/backtrace decoder for serial logs
 - A10 Reproducible builds check
 - A11 Repository bootstrap: per-repo workspaces and READMEs, `os/manifest.toml`, `tools/sync.sh` with local path overrides, dependency-direction check (REPOSITORIES.md)
-- A12 Hosted CI: reusable workflows for the pre-merge, post-merge and nightly lanes, the roller, compiler cache and toolchain image (CI_RELEASE.md)
+- A12 Hosted CI: reusable workflows that run `tools/ci.sh` on every push and nightly, compiler cache and toolchain image
 
 ## B. Boot (M1)
 

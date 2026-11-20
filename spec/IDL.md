@@ -1,8 +1,8 @@
 # IDL: grammar, wire format, evolution
 
-Decided by `spec/adr/0002-idl-grammar-and-wire-format.md`. The
-compiler (`silica-idlc`, A06) implements exactly this; where this file is silent and the choice is visible to
-another repository, it is an escalation.
+The compiler (`silica-idlc`, A06) implements exactly this. Where this file is silent and the choice is visible
+outside `idl`, make the choice and write it here. The reasons for these rules, their costs and how to reverse them
+are in `spec/IDL_RATIONALE.md`.
 
 ## 1. Files
 
@@ -66,7 +66,7 @@ payload.
 **Reply status**: 0 `ok` (payload is the result field list); 1 `error` (payload is the method's error enum
 value, encoded as a one-field list); 2 `unknown_method` (empty payload); 3 `malformed_request` (empty payload);
 4 `reply_too_large` (empty payload: the provider's reply did not fit the limits below,
-`spec/adr/0009-idl-transport-before-libsys.md`). Other values are malformed.
+`spec/IDL_RATIONALE.md` section 5). Other values are malformed.
 
 **Payload**: the request parameters, the reply results, or the error, each encoded as a field list.
 
@@ -83,12 +83,12 @@ value, encoded as a one-field list); 2 `unknown_method` (empty payload); 3 `malf
 | `option<T>` | one byte, 0 (absent) or 1 (present, followed by `T`); anything else is malformed |
 | `cap`, `cap<T>`, `endpoint<P>` | one byte: the index of the capability in the message's capability list |
 
-**Capabilities** never appear as bytes. They travel in the kernel message's capability transfer (C09.04), in a
+**Capabilities** never appear as bytes. They travel in the kernel message's capability transfer (C09), in a
 list next to the bytes. Capability indices must appear in encoding order 0, 1, 2, ... and every transferred
 capability must be referenced exactly once; otherwise the message is malformed. Generated decoding checks the
 object type of a `cap<T>` where the transport reports one (`Capability::object_type`), and that an `endpoint<P>` is
 an endpoint; a mismatch is malformed. The protocol of an `endpoint<P>` is a contract, not checked. Capabilities
-move: the sender gives them up when it sends (`spec/adr/0009-idl-transport-before-libsys.md`).
+move: the sender gives them up when it sends (`spec/IDL_RATIONALE.md` section 5).
 
 **Limits**: a message is at most 4096 bytes including the header and carries at most 4 capabilities; field lists
 nest at most 32 deep. Larger data travels in a `cap<Frame>` with offset and length fields. Raising a limit later is
@@ -104,7 +104,7 @@ one value has one encoding for a given protocol version.
 These byte strings are normative. Every implementation of the wire format (`silica-idl-rt` and generated Rust,
 later libsys and other bindings) must encode the values below to exactly these bytes and decode these bytes to
 exactly these values. They were written from the text of section 3, not produced by any encoder
-(`spec/adr/0008-wire-known-answer-vectors.md`). All use protocol `sample.Echo` (`idl/protocols/sample/echo.idl`),
+(`spec/IDL_RATIONALE.md` section 4). All use protocol `sample.Echo` (`idl/protocols/sample/echo.idl`),
 sender version 1. Bytes are hexadecimal, 16 per row.
 
 V1, `echo` request, `data` = `68 69` ("hi"), no capabilities, 26 bytes:
@@ -163,7 +163,7 @@ V7, reply to a request with ordinal 9, status `unknown_method`, 16 bytes:
 09 00 00 00 01 00 02 00 01 00 00 00 00 00 00 00
 ```
 
-V8, `echo` reply, status `reply_too_large`, 16 bytes (`spec/adr/0009-idl-transport-before-libsys.md`; tested in
+V8, `echo` reply, status `reply_too_large`, 16 bytes (`spec/IDL_RATIONALE.md` section 5; tested in
 `idl/idlc/tests/transport.rs`):
 
 ```
@@ -187,7 +187,7 @@ It may not rename, reorder, retype or remove anything (old items and variants ke
 item keeps its kind), change an ordinal, an enum width or value, or a method's `error`. `version` never decreases;
 it increases (by any amount) when anything other than doc comments changed. `silica-idlc check-compat <old.idl>
 <new.idl>` enforces this: one `ERROR:` line with file, line and column per violation, exit 1 on any, 0 when
-compatible, 2 on a usage error (`spec/adr/0005-evolution-check-rules.md`).
+compatible, 2 on a usage error (`spec/IDL_RATIONALE.md` section 3).
 Before the first `stable` release a removal follows the staged migration in `spec/ARCHITECTURE.md`
 section 4, bypassing the check for that one commit; a removed method's ordinal becomes `reserved` forever.
 
@@ -231,9 +231,9 @@ whether retrying is safe. Each protocol's doc comments state what the caller obs
   host tests use plain stand-in values.
 - Output is a deterministic function of the input files.
 - The Rust names and types of generated code, and the names the generator reserves, are fixed by
-  `spec/adr/0004-generated-rust-mapping.md`, as amended by `spec/adr/0009-idl-transport-before-libsys.md`
+  `spec/IDL_RATIONALE.md` section 2, as amended by `spec/IDL_RATIONALE.md` section 5
   (capabilities are not `Clone` and move into `Transport::call`; `dispatch` cannot fail), and by
-  `spec/adr/0010-capabilities-in-the-rust-mapping.md` (encoding takes values by value, decoding takes the
+  `spec/IDL_RATIONALE.md` section 6 (encoding takes values by value, decoding takes the
   capability list by value, and generation rejects an `array` whose element type can carry a capability).
-- How generated bindings reach other repositories (generated at build time or checked in) is decided in mode `plan`
-  before M2, when the first consumer (D03) exists.
+- How generated bindings reach other repositories (generated at build time or checked in) is decided when the
+  first consumer (D03) exists, before M2.

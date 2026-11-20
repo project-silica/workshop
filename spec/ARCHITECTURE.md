@@ -84,7 +84,7 @@ applications. The stable contract is:
 1. The IDL protocol definitions in `idl/` (versioned, additive evolution only).
 2. `libsys`, a small shared object the kernel maps into every process (vDSO style). Applications link against it.
 
-The compatibility promise starts with the first `stable` release (`spec/CI_RELEASE.md` section 8; not before the M9 gate). Until then every protocol is provisional: when use shows a protocol is wrong, replace it through a staged migration (add the new one, move the provider and every consumer, then remove the old one). Each single change is still additive or a removal of something unused, so no commit breaks a build. From the first `stable` release on, nothing published is removed or changed. That release waits for the outside-developer trial (`spec/CI_RELEASE.md` section 9), so its findings can still change the design.
+The compatibility promise starts with the first `stable` release (`spec/CI_RELEASE.md` section 8; not before the M9 exit test passes). Until then every protocol is provisional: when use shows a protocol is wrong, replace it through a staged migration (add the new one, move the provider and every consumer, then remove the old one). Each single change is still additive or a removal of something unused, so no commit breaks a build. From the first `stable` release on, nothing published is removed or changed. That release waits for the outside-developer trial (`spec/CI_RELEASE.md` section 9), so its findings can still change the design.
 
 - Reason: Linux cannot fix its syscall mistakes because binaries call them directly. This design lets the kernel be rewritten under running software.
 - Escape hatch: this is the escape hatch for nearly everything else.
@@ -196,7 +196,7 @@ Capabilities everywhere. W^X enforced by the kernel. KASLR and userspace ASLR.
 SMEP/SMAP/UMIP, CET shadow stacks and IBT where present (PAC/BTI on arm).
 Speculative-execution mitigations chosen per CPU at boot. IOMMU mandatory for
 any DMA-capable driver. Kernel stack per thread with guard pages. No
-`unsafe` outside reviewed modules listed in `spec/UNSAFE_MODULES.md`. Measured
+`unsafe` outside the modules listed in `spec/UNSAFE_MODULES.md`. Measured
 boot into TPM2. Per-app sandbox is the default, not an option.
 
 ## 14. Observability and operations

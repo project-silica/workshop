@@ -42,9 +42,25 @@ Push on the limits as well as the flaws. The gates in `spec/TESTING.md` compare 
 
 The milestone order is a sensible default. Pull work forward when it unblocks real use or gives an interface its first real caller sooner. The Rust `std` backend is one example: it turns most of the crates ecosystem into Silica software, so it may be worth far more early than its place in the table suggests.
 
-This project once ran on heavy process: an architect who alone edited the spec, a decision record required before any change, feature lists, journals, evaluators and gates. None of it applies. The records under `spec/adr/` still use that vocabulary; read them for the technical decision they contain. A short note beside the interface, or in the commit that depends on a decision, is the whole record you owe.
-
 </design_authority>
+
+<no_process_layer>
+
+Silica was once run by a process that grew larger than the code: an architect role that alone could edit the spec, a decision record required before any change, feature lists, state journals, dispatch and verification tooling, evaluators and review gates. It was removed because it produced process instead of an operating system. Keep it from growing back in any form, including forms that look like diligence.
+
+The record of this project is the code, the tests, the spec and the commit history. That is all you maintain. Each of the following recreates the old process, and each has a plain replacement:
+
+- **Tracking files.** A status board, progress log, task list, feature list or journal repeats what Git and the test results already say, and then goes stale. The tests say what works. The commits say what changed and why.
+- **Decision-record series.** A numbered file per decision turns design into paperwork. Put the reason in the spec section that describes the design, beside the interface, or in the commit, and rewrite it when the design changes.
+- **Approval steps.** A template, checklist or sign-off that must be completed before code can change has nobody to complete it for. The check on a change is that it builds, boots, passes its tests and meets its measurements.
+- **Roles and hand-offs.** Planner, implementer, reviewer and verifier agents, and the machinery to coordinate them, multiply cost and spread responsibility thin. You hold the whole problem. When you want help or a second opinion, brief a helper directly as `<other_agents>` describes.
+- **Tools about the work.** Dispatchers, claim verifiers, quota trackers and reports on progress serve the process. The tools in `os/tools` exist to build, boot, test and measure Silica. Extend them when a concrete engineering task needs it, and keep them smaller than what they serve.
+
+Apply one test before adding any document or tool: if it were deleted, would Silica build, boot, pass its tests or be understood any worse? If the answer is no, leave it out.
+
+Some words in the spec sound like process and are plain engineering. A milestone's exit test, a size budget and a performance gate are automated checks that you run. `spec/COMPONENTS.md` is a map of the destination that you consult to see where a piece fits; work proceeds by vertical slices, and the tests are the only record of what is complete. `spec/CI_RELEASE.md` describes how finished images reach users from M4 on and asks nothing of you before then.
+
+</no_process_layer>
 
 <foundation>
 
@@ -52,7 +68,7 @@ The foundation is everything the rest of the system is written against: the kern
 
 Treat each foundational piece as an experiment until it has proven itself. Build it, then put real weight on it: a driver, a service and a small application written against the published interface, a benchmark against the gates, a fault-injection run. When it falls short, go back to the design and rebuild the piece, because a patch over a foundational flaw becomes a permanent part of the system. Expect to write some parts two or three times and count that as progress. A rewritten 2,000-line subsystem with the lesson built in is worth more than a first draft with ten services stacked on it.
 
-Give each experiment a question, a way to measure the answer, and a conclusion written where the next reader will find it. Delete the candidates that lost, so the tree holds one design at a time.
+Give each experiment a question and a way to measure the answer, and write the conclusion in the commit that adopts the winner and in the spec section it changes. Delete the candidates that lost, so the tree holds one design at a time.
 
 Keep the layers above thin while the layer below is still moving. The vertical slices described in `<working_method>` are how the foundation gets tested, so build enough above it to exercise it honestly and no more, until it has stopped changing under real use.
 
@@ -162,7 +178,7 @@ Run commands and resolve failures yourself. If a physical device or an external 
 
 The foundation is one mind's work. Kernel objects, IPC, libsys, the IDL runtime and the first driver in each class shape each other too closely to split, so design and write them yourself.
 
-Once an interface is settled and documented, bounded work behind it can go to a helper: a second driver in an existing class, an application on the published bindings, a port, or a review of your change by someone who has not seen your reasoning. Give the helper what an outside developer would have, meaning the published protocol, the examples and the goal, along with the standard in this file. Where it struggles or reaches for something unpublished, you have learned something about the interface, and that is worth fixing before the next client. Read what comes back as you would a contributor's patch, and verify it on the integrated build before you rely on it.
+Once an interface is settled and documented, bounded work behind it can go to a helper: a second driver in an existing class, an application on the published bindings, a port, or a review of your change by someone who has not seen your reasoning. Give the helper what an outside developer would have, meaning the published protocol, the examples and the goal, along with the standard in this file. Where it struggles or reaches for something unpublished, you have learned something about the interface, and that is worth fixing before the next client. Read what comes back as you would a contributor's patch, and verify it on the integrated build before you rely on it. A brief and a patch are the whole exchange; helping needs no coordination machinery of its own.
 
 </other_agents>
 
