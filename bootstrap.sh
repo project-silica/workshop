@@ -17,7 +17,7 @@ pin_of() { # 40-hex commit pinned for $1, or empty
 }
 
 trusted_os=0
-for repo in spec idl kernel os .github; do
+for repo in idl kernel os .github; do
   pin=$(pin_of "$repo")
   if [ -e "$repo" ]; then
     top=$(g -C "$repo" rev-parse --show-toplevel 2>/dev/null || true)
@@ -45,5 +45,5 @@ done
 if [ "$trusted_os" = 1 ] && [ -x tools/sync.sh ]; then
   ./tools/sync.sh
 fi
-[ -f spec/ARCHITECTURE.md ] || die "spec/ARCHITECTURE.md missing; publish and pin the spec repository first"
+[ -f spec/ARCHITECTURE.md ] || die "spec/ARCHITECTURE.md missing; this is not a complete workshop checkout"
 echo "BOOTSTRAP: OK"

@@ -1,5 +1,4 @@
 # Clones of the component repositories (each is its own Git repository).
-/spec/
 /idl/
 /kernel/
 /os/
