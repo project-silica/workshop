@@ -1,0 +1,18 @@
+# Clones of the component repositories (each is its own Git repository).
+/spec/
+/idl/
+/kernel/
+/os/
+/.github/
+/system/
+/drivers/
+/storage/
+/network/
+/sdk/
+/graphics/
+/desktop/
+/packages/
+/docs/
+# Linked worktrees, team notes and per-run harness output.
+/.wt/
+/target/
