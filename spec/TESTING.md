@@ -26,29 +26,96 @@ An OS has no single reference implementation, so each layer gets its own.
 
 ## 4. Performance and size gates
 
-Baseline: a minimal Linux (current LTS, same QEMU/KVM configuration, same
-vCPU and RAM), built once by `tools/bench.sh --build-baseline`.
+### 4.1 How a number becomes a gate
 
-Must win (gate fails otherwise, from the milestone listed):
+A gate is only worth having if it measures what it claims, on a fair comparison, with less noise than the change
+it is meant to catch. These rules apply to every gate below.
 
-| Metric | Target vs Linux | From |
+- **Same host, same session.** Silica and the Linux baseline are measured on the same machine in the same run,
+  interleaved (A, B, A, B). A baseline recorded on another host or another day is not comparable.
+- **A pinned, reproducible, well-tuned Linux.** The baseline's kernel version, config and init live in the `os`
+  repository and the tool builds the image from them. The config is tuned for the same job as the Silica image
+  (virtio only, nothing loaded that the workload does not use), so Silica is compared with Linux at its best.
+- **Timing gates count only under KVM** on a quiet host with pinned vCPUs. Under TCG, timings are recorded and
+  never gated, because emulated instruction cost says nothing about cache, TLB or mode-switch cost.
+- **Deterministic gates for fixed paths.** IPC, syscall entry and exit, context switch and page-fault delivery are
+  also gated by instruction count (QEMU `-icount`, or hardware counters). The count has no noise, so any increase
+  fails until the commit that causes it explains it.
+- **Enough samples, and the spread reported.** A micro-benchmark runs at least 10,000 iterations in the guest and
+  reports minimum, median and p99. A boot-level metric takes at least 10 boots. Results carry their dispersion.
+- **Ratchets.** Each metric keeps its best recorded value in the repository. A regression is a result worse than
+  that best by more than the measured noise (three median absolute deviations), so slow creep cannot pass, and an
+  improvement moves the ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone.
+- **Observed from the host wherever possible.** Boot times are stamped by the host between QEMU start, the first
+  serial byte and the ready marker. Memory is the pages the guest touched. Lost writes are verified by the host
+  reading the disk image. Idle wakeups are vCPU exits. A guest's own report is used only for what the host cannot
+  see.
+- **Efficiency where emulation hides throughput.** Under QEMU the host bounds I/O throughput for both systems, so
+  I/O gates measure guest CPU time per operation at a fixed rate; raw throughput is recorded.
+- **A gate must be able to fail.** Each gate has a test that plants a regression and sees the gate fail. A metric
+  that is missing at its milestone fails. A check on something that does not exist yet reports SKIP, never pass.
+- **Real hardware has the last word.** Every gate is measured again on the reference machines at M8.
+
+### 4.2 Gates
+
+Kernel paths:
+
+| Metric | Gate | From |
 | --- | --- | --- |
-| Boot to first userspace process | faster | M2 |
-| Boot to network-ready server | faster | M4 |
-| Idle memory, server image | at most 25% of Linux baseline | M4 |
-| IPC round trip (same core) | under half a Linux `pipe` ping-pong | M2 |
-| Context switch | at or below Linux | M2 |
-| Driver crash recovery: kill the virtio-blk and the virtio-net driver process during sustained I/O | service resumes within 250 ms with no loss of committed writes. The Linux result for the equivalent fault (driver forcibly unbound under the same load) is recorded, not gated | M3 |
-| p99 scheduling latency under load | at or below Linux | M3 |
-| Cold start of a native app | faster | M6 |
+| IPC round trip, same core | under half a Linux `pipe` ping-pong; instruction count ratchet | M2 |
+| IPC round trip, cross core, and with one capability transferred | ratchet | M2 |
+| IPC throughput, 8 independent pairs on 8 cores | at least 7x one pair | M2 |
+| Context switch between address spaces, FPU state live | at or below Linux | M2 |
+| Page fault resolved by a userspace pager | ratchet; Linux minor fault recorded | M2 |
+| Process spawn to the child's first instruction | faster than Linux `fork`+`exec` of a static binary | M3 |
+| Empty process: kernel objects plus runtime, in bytes | ratchet | M2 |
+| Timer: sleep overshoot p99 | at or below Linux | M2 |
+| Scheduling latency under the defined load, p99.9 and maximum over 10 minutes | at or below Linux | M3 |
 
-Allowed to trail, tracked with a ceiling:
+Whole operations, which carry the cost a microkernel adds between servers:
 
-| Metric | Ceiling | From |
+| Metric | Gate | From |
 | --- | --- | --- |
+| Open, read 4 KiB, close, through application, filesystem, block server and driver | within 1.5x of Linux | M5 |
+| 4 KiB write plus sync, p99 | within 1.25x | M5 |
 | Small-file metadata throughput | within 1.5x | M5 |
-| TCP throughput, single stream | within 1.25x | M4 |
-| Block 4K random IOPS: virtio-blk from M5, NVMe added at M8 (when E05 lands) | within 1.1x, each against the same device on Linux | M5 |
+| Block I/O: guest CPU per operation at a fixed rate, virtio-blk from M3, NVMe from the milestone its driver lands | within 1.1x, each against the same device on Linux | M3 |
+| HTTP request p99 latency at a fixed rate, 64 connections | at or below Linux | M4 |
+| TCP: guest CPU per gigabyte at a fixed rate | within 1.25x | M4 |
 
-A regression of more than 5% on any tracked metric fails the nightly. Size
-budgets from ARCHITECTURE.md section 2 are checked by `tools/test.sh --fast`.
+System:
+
+| Metric | Gate | From |
+| --- | --- | --- |
+| Boot to first userspace process | faster than Linux; ratchet | M2 |
+| Boot to network-ready server | faster than Linux; ratchet | M4 |
+| Idle memory, server image | at most 25% of the Linux baseline; ratchet in bytes | M4 |
+| Idle wakeups over 60 s | 0 on the server image; 0 on the desktop with a static screen | M4, M6 |
+| Memory and capability count after a 24 h soak | no growth | M4 |
+| Driver crash recovery: kill virtio-blk and virtio-net during sustained I/O | service resumes within 250 ms; zero committed writes lost, verified by the host; open connections continue. Linux forced-unbind result recorded | M3 |
+| Clock: drift against the host over 1 h; monotonic time never steps back across CPUs or suspend | within the NTP bound; zero backward steps | M4 |
+
+Desktop:
+
+| Metric | Gate | From |
+| --- | --- | --- |
+| Input to frame | at most one frame | M6 |
+| Dropped frames over 60 s of the reference scene | 0 | M6 |
+| Audio underruns over 10 minutes with a 10 ms buffer under the defined load | 0 | M6 |
+| Cold start of a native app | faster than Linux | M6 |
+
+### 4.3 Size
+
+Budgets are in `spec/ARCHITECTURE.md` section 2 and `tools/test.sh --fast` checks them. The same rules of
+measurement apply:
+
+- Measure every architecture that builds, and include `.data` and `.bss` beside text and rodata.
+- Count the vendored crates the kernel links in its line ceiling.
+- Count kernel operations, meaning every syscall and every invocation label of every object type, so one
+  multiplexed syscall cannot hide a wide interface.
+- Resident text of the core servers is measured from the running image.
+
+### 4.4 Fuzzing
+
+A fuzzer that runs clean for ten minutes proves little if it reaches a tenth of the code. A fuzz gate states the
+coverage it reached on the target, keeps its corpus, and fails when coverage drops.
