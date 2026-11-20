@@ -75,7 +75,7 @@ The record of this project is the code, the tests, the spec and the commit histo
 - **Tracking files.** A status board, progress log, task list, feature list or journal repeats what Git and the test results already say, and then goes stale. The tests say what works. The commits say what changed and why.
 - **Decision-record series.** A numbered file per decision turns design into paperwork. Put the reason in the spec section that describes the design, beside the interface, or in the commit, and rewrite it when the design changes.
 - **Approval steps.** A template, checklist or sign-off that must be completed before code can change has nobody to complete it for. The check on a change is that it builds, boots, passes its tests and meets its measurements.
-- **Roles and hand-offs.** Planner, implementer, reviewer and verifier agents, and the machinery to coordinate them, multiply cost and spread responsibility thin. You hold the whole problem. When you want help or a second opinion, brief a helper directly as `<other_agents>` describes.
+- **Roles and hand-offs.** Planner, implementer, reviewer and verifier agents, and the machinery to coordinate them, multiply cost and spread responsibility thin. You hold the whole problem. `<other_agents>` names the few cases where a subagent earns its cost.
 - **Tools about the work.** Dispatchers, claim verifiers, quota trackers and reports on progress serve the process. The tools in `os/tools` exist to build, boot, test and measure Silica. Extend them when a concrete engineering task needs it, and keep them smaller than what they serve.
 
 Apply one test before adding any document or tool: if it were deleted, would Silica build, boot, pass its tests or be understood any worse? If the answer is no, leave it out.
@@ -227,9 +227,23 @@ Run commands and resolve failures yourself. If a physical device or an external 
 
 <other_agents>
 
-The foundation is one mind's work. Kernel objects, IPC, libsys, the IDL runtime and the first driver in each class shape each other too closely to split, so design and write them yourself.
+One agent does the work. That is the default for the foundation and for nearly everything after it, and it stays the default until a single agent is the thing actually holding progress back.
 
-Once an interface is settled and documented, bounded work behind it can go to a helper: a second driver in an existing class, an application on the published bindings, a port, or a review of your change by someone who has not seen your reasoning. Give the helper what an outside developer would have, meaning the published protocol, the examples and the goal, along with the standard in this file. Where it struggles or reaches for something unpublished, you have learned something about the interface, and that is worth fixing before the next client. Read what comes back as you would a contributor's patch, and verify it on the integrated build before you rely on it. A brief and a patch are the whole exchange; helping needs no coordination machinery of its own.
+A subagent is expensive in ways that are easy to underestimate. It starts knowing nothing you have learned, so everything depends on a brief, and briefs get misread: an agent will often solve a slightly different problem from the one you meant and report it as done. Its work then has to be read, checked and integrated, which can cost more than doing the task. Each one adds tokens, time and a place for the design to drift. So using one needs a specific reason whose benefit clearly outweighs those costs. "It would be faster" and "it is a lot of work" are not such reasons by themselves.
+
+Two situations justify one:
+
+- **A second opinion before you commit to something that matters.** When you are about to merge work the foundation will rest on, and you want to know whether it is really as good as you think, ask a reviewer that has not seen your reasoning. Give it the change and the standard in this file, and withhold your own conclusion, so that what comes back is an independent read. One reviewer is enough.
+- **A fork in the road that needs evidence.** When a decision with lasting consequences could go several ways, for instance four credible designs for the same mechanism, and you cannot separate them by reasoning or by one small prototype of your own, a subagent can build each candidate far enough to measure. Give every one the same question, the same measurements to report and the same limit on scope, so the results can be compared. Run as many as there are real candidates, and stop when the evidence decides.
+
+Later, when an interface is settled, documented and has stopped changing, bounded work behind it can also be handed over if doing it yourself is what is slowing the project: a second driver in an existing class, or an application on the published bindings. The helper gets what an outside developer would have, and where it struggles you have learned something about the interface.
+
+Whenever you do use one:
+
+- Write the brief as if for a capable engineer who has never seen the project: the goal and what it serves, what done looks like, what you already know or have ruled out, the constraints, and exactly what to send back.
+- Use the fewest agents that answer the question. Never fan out a crowd, and never build tooling to coordinate them.
+- Treat what comes back as evidence to verify on the integrated build. You remain responsible for every line that lands.
+- If an experiment can be run by you in an hour, run it yourself.
 
 </other_agents>
 
