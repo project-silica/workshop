@@ -90,7 +90,7 @@ object type of a `cap<T>` where the transport reports one (`Capability::object_t
 an endpoint; a mismatch is malformed. The protocol of an `endpoint<P>` is a contract, not checked. Capabilities
 move: the sender gives them up when it sends (`spec/IDL_RATIONALE.md` section 5).
 
-**Limits**: a message is at most 4096 bytes including the header and carries at most 4 capabilities; field lists
+**Limits**: a message is at most 4000 bytes including the header (what one kernel message carries; larger data travels in a shared Frame) and carries at most 4 capabilities; field lists
 nest at most 32 deep. Larger data travels in a `cap<Frame>` with offset and length fields. Raising a limit later is
 additive; lowering one is not.
 
