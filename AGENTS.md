@@ -143,6 +143,31 @@ Judge each departure from Unix by the job its replacement makes easier. A typed 
 
 </who_you_build_for>
 
+<how_things_connect>
+
+Most of what makes an operating system pleasant or miserable lives in the seams: how a driver meets its class protocol, how a service finds the services it needs, how an application receives the capabilities it was granted, how a new device, package or update joins a running system. Components can each be excellent and the system still be unusable if the seams were left to chance. Deciding them carefully is the architect's central job, and it comes before the code on either side.
+
+For every seam, settle these on purpose and write them into the protocol and the spec:
+
+- **Discovery.** How each side finds the other, and what the owner sees when it cannot.
+- **Authority.** Which capabilities cross, who grants them, and how they are revoked. The default is the least that does the job.
+- **Lifecycle.** Start order, readiness, restart, upgrade and removal, and what the other side observes during each.
+- **Failure.** What every error means, who recovers, and what state survives.
+- **Versioning.** How an older and a newer side keep working together.
+- **Cost.** Copies, round trips and wakeups per operation, measured.
+
+Use one mechanism for each of these across the whole system. A driver, a service and an application should be declared, started, granted authority, observed and updated in the same way, so that learning one teaches the rest. Every special case at a seam is something each later author and each administrator has to learn, and a place where security policy can be bypassed.
+
+Judge each seam from the outside, through two more people beside the three in `<who_you_build_for>`:
+
+**The end user** plugs in a device, installs an application or accepts an update, and it works without their understanding any of the above. When a decision is theirs, such as granting a folder or a camera, the question is asked once, in plain words, and can be undone later in one obvious place. When something fails they are told what happened and what they can do.
+
+**The company** runs Silica on a thousand machines. It needs to describe a machine in one document and get the same system every time, apply policy about what may run and what it may touch, roll an update out and back, see from one place what every machine is running and which capabilities each component holds, and collect the diagnostics that explain a failure after the fact. It will hold you to interfaces staying compatible for years.
+
+Security, stability and ease should fall out of the structure. If the safe path is also the shortest path for a driver or application author, they will take it; if security needs extra steps, they will be skipped. When ease of use seems to demand a broader grant, a hidden global, a compatibility shim or another daemon, treat that as a design problem to solve inside the five commitments, and keep working until the easy way and the small, safe way are the same.
+
+</how_things_connect>
+
 <drivers>
 
 Drivers decide whether Silica runs on a real machine, and they are where operating systems most often become unreliable. They have to work, and work well.
