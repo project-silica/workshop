@@ -45,9 +45,9 @@ runs on QEMU's device models; M8 is real hardware.
 
 | M | Devices and platform services that must work |
 | --- | --- |
-| M1 | Serial console; framebuffer text console; entropy and wall-clock time handed over from firmware at boot |
+| M1 | Serial console; the firmware's framebuffer, entropy and wall-clock time handed over to the root task at boot |
 | M2 | Per-CPU timers; interrupts routed to userspace |
-| M3 | PCI enumeration; virtio-blk, virtio-net, virtio-rng, virtio-console; NVMe as the second block driver; keyboard (virtio-input) on a local console shell; hot-add and removal of a device; shutdown and reboot |
+| M3 | PCI enumeration; virtio-blk, virtio-net, virtio-rng, virtio-console; NVMe as the second block driver; framebuffer text console (userspace, plus the kernel's panic screen); keyboard (virtio-input) on a local console shell; hot-add and removal of a device; shutdown and reboot |
 | M4 | Hardware clock, NTP and time zones; e1000e as the second network driver; watchdog |
 | M5 | Storage on NVMe and AHCI models; TPM 2.0 for measured boot and disk keys |
 | M6 | Display (GOP, virtio-gpu, two outputs); pointer and keyboard through xHCI and USB HID with hotplug; keyboard layouts; audio out and in (virtio-sound, then the HDA model) |

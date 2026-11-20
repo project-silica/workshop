@@ -57,6 +57,10 @@ component when a working slice calls for it.
 - C22 Virtualization objects: Vcpu, guest address space (VMX/SVM, EL2) (M9)
 - C23 Debug: kernel log ring, tracepoints, serial debugger stub, crash dump writer
 - C24 Performance counters interface
+- C27 Capability transfer through an endpoint (derive, duplicate or move, chosen by the sender), and a saved-caller reply capability so a server can answer calls out of order (M2)
+- C28 Address-space table memory: grow a live AddressSpace's pool, give emptied tables back, PCID so a switch keeps the TLB (M2)
+- C29 Notification bound to a thread, so one receive waits on an endpoint and on interrupts (M3)
+- C30 Early framebuffer console for the kernel's own messages on machines with no serial port (M3, with the local console)
 
 ## D. Core userspace (M2 to M3)
 

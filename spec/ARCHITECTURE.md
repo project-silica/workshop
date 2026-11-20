@@ -45,7 +45,7 @@ Bloat ceilings, also enforced by `tools/size.sh`:
 | --- | --- |
 | Kernel source, excluding tests and the three arch directories | 12,000 lines of Rust |
 | Each arch directory | 4,000 lines |
-| Syscalls | 32 |
+| Syscalls (every kernel operation is its own syscall; there is no multiplexed invoke) | 32 |
 | Kernel object types | 10 |
 | Heap allocations inside the kernel after boot | 0 |
 
@@ -64,7 +64,7 @@ budget only with the measurement that justifies it written beside the new number
 | "Everything is a file" | Everything is a typed object behind a capability |
 | Blocking syscalls for I/O | Shared-memory submission/completion rings; sync call is a library wrapper |
 | TTY/PTY line discipline | Terminal is a userspace protocol over a channel |
-| BIOS, CSM, MBR, PIC, PIT, PS/2, VGA text, IDE, floppy, parallel, ISA | UEFI, GPT, APIC/x2APIC, TSC-deadline with HPET fallback, USB HID, GOP framebuffer, NVMe/AHCI/virtio |
+| BIOS, CSM, MBR, PIC, PIT, xAPIC, PS/2, VGA text, IDE, floppy, parallel, ISA | UEFI, GPT, x2APIC, the TSC-deadline timer on an invariant TSC, USB HID, GOP framebuffer, NVMe/AHCI/virtio. An x86_64 machine without x2APIC, TSC-deadline, XSAVE and AVX2 (anything before 2013) is not supported, and the kernel says so at boot |
 | 32-bit, compat mode, segmentation, real mode | 64-bit only; the kernel never leaves long mode |
 | Kernel heap, kernel-side allocation policy | Untyped memory: userspace supplies the memory for every kernel object (section 6) |
 | Kernel modules | Userspace driver processes, restartable |
@@ -101,14 +101,15 @@ controller, timer, and early serial), process policy, naming, security policy.
 
 ## 6. Kernel mechanisms
 
-- **Objects (10, final)**: Untyped, CapSpace, Thread, AddressSpace, Frame (memory, all page sizes), Endpoint (synchronous IPC), Notification (async signal, also carries interrupts and timer expiry), SchedContext (CPU budget), IoPort (x86 port ranges, handed only to the drivers that need them), Vcpu (M9). There is no Channel, Port, Timer, Interrupt, or Job object: each is either expressed with these ten or lives in userspace.
+- **Objects (10, final)**: Untyped, CapSpace, Thread, AddressSpace, Frame (memory, any power-of-two size from a page up), Endpoint (synchronous IPC), Notification (async signal, also carries interrupts), SchedContext (CPU budget), Hw (a range of hardware resources that are not memory: I/O ports or interrupt lines, created at boot and only ever narrowed), Vcpu (M9). There is no Channel, Port, Timer, Interrupt, PageTable or Job object: each is either expressed with these ten or lives in userspace.
 - **Untyped memory**: all physical memory is handed to the root task as Untyped capabilities at boot. Every kernel object is created by retyping Untyped memory that the caller owns. The kernel has no heap and never allocates after boot. Resource accounting, quotas and "jobs" are therefore userspace policy with no kernel code. Revoking an Untyped destroys everything made from it.
-- **Capabilities**: unforgeable handles with rights bitmask; derive with reduced rights; revoke by derivation tree. No capability, no access. No exceptions.
+- **Capabilities**: unforgeable handles with a rights mask, named by slot index in the caller's CapSpace (one flat table per CapSpace, no guards or multi-level addressing; an operation on another CapSpace names that CapSpace's capability and an index). Every capability has a place in a derivation tree. *Derive* makes a child with equal or fewer rights that depends on its source; *duplicate* makes an independent sibling; *move* keeps the place. A capability never outlives what it was derived from: deleting one deletes its descendants, so no descendant is ever re-parented and every step of delete and revoke is O(1) and preemptible. Lend with derive, hand on with duplicate or move. An Untyped has exactly one capability (split it by retyping). No capability, no access. No exceptions.
+- **Kernel execution**: one kernel stack per processor with a guard page, interrupts off in the kernel, no blocking inside it. Every entry runs to completion and returns to the thread the scheduler picks. Long operations (zeroing a large Retype, revoking a large tree) poll for a pending interrupt, record their progress in the objects, and restart. The kernel never dereferences a user virtual address: message words beyond the registers travel through the thread's IPC buffer Frame, reached through the kernel's map of physical memory.
 - **IPC**: synchronous call/reply on Endpoints with direct thread switch and register passing; capabilities and Frames transferred in the message. Streams, channels, ports and shared submission/completion rings are userspace libraries built from Frames plus Notifications. The kernel knows nothing about them.
-- **Memory**: userspace pagers handle faults. Huge pages first-class. No overcommit, no OOM killer; allocation fails at the caller.
+- **Memory**: userspace pagers handle faults (a fault is a call to the thread's fault endpoint; the reply resumes it). An AddressSpace object carries the memory for its own page tables and `Map` fails with `NoMemory` when that runs out, so table memory is paid for by the owner like everything else. One Frame capability maps at one place; copy it to map it twice. Deleting a Frame capability, or the address space, removes the mapping. No mapping is writable and executable at once. Frames of 2 MiB and up use large pages. No overcommit, no OOM killer; allocation fails at the caller.
 - **Scheduler**: per-CPU run queues; EEVDF-style fair class plus a deadline class with admission control; scheduling-context capabilities so budget is delegated across IPC (priority-inheritance by construction); core-type aware (P/E cores); tickless.
 - **SMP**: per-CPU kernel data, no big kernel lock, lock ordering documented and checked under `loom`.
-- **Time**: monotonic clock from invariant TSC (or arch equivalent), HPET as fallback; timer expiry is delivered as a Notification; wall clock is a userspace service.
+- **Time**: monotonic clock from the invariant TSC (or arch equivalent), calibrated from CPUID, the hypervisor's clock, or the ACPI PM timer; read in userspace without a syscall. There is no timer object: a receive takes an absolute deadline, so a sleep is a wait on a notification nobody signals and a timeout is the same call. Wall clock is a userspace service.
 - **Interrupts**: MSI/MSI-X preferred, IOAPIC line interrupts supported (GICv3 on arm); every interrupt is bound to a Notification.
 - **HAL**: `kernel/arch/{x86_64,aarch64,riscv64}` behind one trait. x86_64 is built first; aarch64 must compile and boot by M2 so the trait stays honest.
 
@@ -195,7 +196,7 @@ Consequences, accepted:
 Capabilities everywhere. W^X enforced by the kernel. KASLR and userspace ASLR.
 SMEP/SMAP/UMIP, CET shadow stacks and IBT where present (PAC/BTI on arm).
 Speculative-execution mitigations chosen per CPU at boot. IOMMU mandatory for
-any DMA-capable driver. Kernel stack per thread with guard pages. No
+any DMA-capable driver. One kernel stack per processor with a guard page (section 6). No
 `unsafe` outside the modules listed in `spec/UNSAFE_MODULES.md`. Measured
 boot into TPM2. Per-app sandbox is the default, not an option.
 
