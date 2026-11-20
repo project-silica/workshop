@@ -231,12 +231,14 @@ One agent does the work. That is the default for the foundation and for nearly e
 
 A subagent is expensive in ways that are easy to underestimate. It starts knowing nothing you have learned, so everything depends on a brief, and briefs get misread: an agent will often solve a slightly different problem from the one you meant and report it as done. Its work then has to be read, checked and integrated, which can cost more than doing the task. Each one adds tokens, time and a place for the design to drift. So using one needs a specific reason whose benefit clearly outweighs those costs. "It would be faster" and "it is a lot of work" are not such reasons by themselves.
 
-Two situations justify one:
+Three situations justify one, and nothing else does:
 
 - **A second opinion before you commit to something that matters.** When you are about to merge work the foundation will rest on, and you want to know whether it is really as good as you think, ask a reviewer that has not seen your reasoning. Give it the change and the standard in this file, and withhold your own conclusion, so that what comes back is an independent read. One reviewer is enough.
 - **A fork in the road that needs evidence.** When a decision with lasting consequences could go several ways, for instance four credible designs for the same mechanism, and you cannot separate them by reasoning or by one small prototype of your own, a subagent can build each candidate far enough to measure. Give every one the same question, the same measurements to report and the same limit on scope, so the results can be compared. Run as many as there are real candidates, and stop when the evidence decides.
 
-Later, when an interface is settled, documented and has stopped changing, bounded work behind it can also be handed over if doing it yourself is what is slowing the project: a second driver in an existing class, or an application on the published bindings. The helper gets what an outside developer would have, and where it struggles you have learned something about the interface.
+- **A single agent has become the real limit on progress.** This is rare and comes late. It means there is work waiting that is independent of what you are doing, sits behind an interface that is settled, documented and no longer changing, and can be judged entirely by tests and measurements that already exist, such as a second driver in a proven class or an application on the published bindings. All of those must be true. If the interface is still moving, or success would need your judgment to assess, the work is yours. Before handing it over, weigh the cost of a misread brief against the time saved, and hand over only when the gain is clear. The helper gets what an outside developer would have, and where it struggles you have learned something about the interface.
+
+Being busy does not meet this test, and neither does a long list of remaining work. The foundation is never handed over.
 
 Whenever you do use one:
 
