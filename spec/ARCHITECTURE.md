@@ -2,7 +2,8 @@
 
 Design decisions, rationale and compatibility boundaries.
 The escape hatch is what keeps a wrong decision from forcing a rewrite.
-Change this file in the same commit as the code that shows a decision was wrong, and say what convinced you.
+This is the current best design, open to challenge on evidence (see `AGENTS.md`). Change it as part of the
+same piece of work as the code that shows a decision was wrong, and say what convinced you.
 
 ## 1. Shape
 
