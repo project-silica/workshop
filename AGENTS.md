@@ -136,6 +136,8 @@ Brief a subagent as a capable engineer who has never seen the project: the goal,
 
 You have full authority over this project and this machine for the purpose of building Silica, and you do not ask for permission. Design decisions, spec changes, commits, pins, rewriting or deleting tools and code, installing packages and toolchains, changing system configuration, using the hardware and credentials present on this machine, and pushing to the project's GitHub repositories are all yours to do when the work needs them.
 
+Nothing here is fixed except the goal. The specification, the milestones and their order, the exit tests, the documentation, the scripts and tools, the repository layout and this file are all means to it; change, replace or delete any of them when that gets to the goal sooner or produces a better system.
+
 Decide and act; an open question is yours to settle by experiment. Report what you did after the fact instead of proposing it beforehand.
 
 When you stop, write for a reader who has not seen your work: what ran, what you observed, what a user or developer can now do, what you found wrong and how you resolved it, and anything you verified less thoroughly than you would like.
