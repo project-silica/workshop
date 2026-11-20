@@ -70,9 +70,15 @@ it is meant to catch. These rules apply to every gate below.
   fails until the commit that causes it explains it.
 - **Enough samples, and the spread reported.** A micro-benchmark runs at least 10,000 iterations in the guest and
   reports minimum, median and p99. A boot-level metric takes at least 10 boots. Results carry their dispersion.
-- **Ratchets.** Each metric keeps its best recorded value in the repository. A regression is a result worse than
-  that best by more than the measured noise (three median absolute deviations), so slow creep cannot pass, and an
-  improvement moves the ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone.
+- **Ratchets.** Each metric keeps its best recorded result in the repository (`os/bench/ratchet.tsv`): the ratio to
+  Linux measured in the same session, which carries from one host to another, or the value itself where Linux has
+  no equivalent. A regression is a result worse than that best by more than the measured noise (three median
+  absolute deviations, of both systems for a ratio), so slow creep cannot pass, and an improvement moves the
+  ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone.
+- **Same payload, same statistics.** The Silica and Linux benchmark programs (`kernel/roottest` bench mode and
+  `os/bench/linux/init.c`) send the same bytes, take the same number of samples after the same warm-up, and report
+  the same minimum, median and 99th percentile. Each system does what its own ABI requires for the program to
+  continue correctly: Linux preserves vector registers across a system call, Silica does not.
 - **Observed from the host wherever possible.** Boot times are stamped by the host between QEMU start, the first
   serial byte and the ready marker. Memory is the pages the guest touched. Lost writes are verified by the host
   reading the disk image. Idle wakeups are vCPU exits. A guest's own report is used only for what the host cannot
@@ -93,7 +99,8 @@ Kernel paths:
 
 | Metric | Gate | From |
 | --- | --- | --- |
-| IPC round trip, same core | under half a Linux `pipe` ping-pong; instruction count ratchet | M2 |
+| IPC round trip, same core, between two address spaces | under half a Linux `pipe` ping-pong; instruction count ratchet | M2 |
+| Null system call | at or below Linux `getppid`; ratchet | M2 |
 | IPC round trip, cross core, and with one capability transferred | ratchet | M2 |
 | IPC throughput, 8 independent pairs on 8 cores | at least 7x one pair | M2 |
 | Context switch between address spaces, FPU state live | at or below Linux | M2 |
