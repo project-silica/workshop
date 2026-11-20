@@ -22,7 +22,7 @@ Names in code, tests and documents follow this list. Rust items use the
 | Endpoint | Rendezvous for synchronous call/reply IPC (object type) | `Endpoint` |
 | Notification | Word of signal bits; also carries interrupts and timer expiry (object type) | `Notification` |
 | SchedContext | CPU budget and period that a thread runs on (object type) | `SchedContext` |
-| IoPort | x86 I/O port range (object type) | `IoPort` |
+| Hw | A range of hardware resources that are not memory: x86 I/O ports or interrupt lines (object type) | `Hw` |
 | Vcpu | Virtual CPU for the hypervisor service, M9 (object type) | `Vcpu` |
 | Call / reply | Synchronous IPC: send and block for the one-shot reply | `call`, `reply` |
 | Reply capability | One-shot capability a server uses to answer one call | `ReplyCap` |

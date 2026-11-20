@@ -43,7 +43,7 @@ component when a working slice calls for it.
 - C09 IPC: Endpoint call/reply fast path, Notifications, capability and Frame transfer
 - C10 Frames, mapping, pager fault protocol, pinning (CoW is userspace policy)
 - C11 Userspace libraries on Frames + Notifications: streams, channels, submission/completion rings (no kernel code)
-- C12 Interrupts: x2APIC/APIC, IOAPIC, MSI/MSI-X (GICv3 on arm), all bound to Notifications; IoPort capabilities (x86)
+- C12 Interrupts: x2APIC/APIC, IOAPIC, MSI/MSI-X (GICv3 on arm), all bound to Notifications; Hw capabilities for I/O ports (x86) and interrupt lines
 - C13 Timers: TSC-deadline, HPET fallback, arch timers; expiry as Notification; monotonic clock
 - C14 Exceptions and fault delivery to a supervisor Endpoint
 - C15 Resource accounting, quotas, kill and teardown as userspace policy over Untyped revocation (no kernel code)

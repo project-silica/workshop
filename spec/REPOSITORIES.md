@@ -13,7 +13,7 @@ or release cadence.
 | [kernel](https://github.com/project-silica/kernel) | `kernel-core`, `kernel`, arch directories, `libsys`, the UEFI loader, kernel tests and proofs | M0 |
 | [os](https://github.com/project-silica/os) | The integration repo: `manifest.toml` pinning one commit of every other repo, image builder, QEMU runner, system-level tests, benchmarks, `tools/`, release tooling | M0 |
 | [workshop](https://github.com/project-silica/workshop) | The project root: `AGENTS.md`, this specification (`spec/`: architecture, component inventory, milestones, testing strategy, IDL rules and their rationale, glossary), workspace bootstrap and the pinned component revisions | M0 |
-| `system` | Core services: root task, service manager, process manager, memory manager, device manager, config store, logging, time, identity, capability broker, update and package services, shell | M2 |
+| [system](https://github.com/project-silica/system) | Core services: the native runtime, the process spawner, the root task, then service manager, memory manager, device manager, config store, logging, time, identity, capability broker, update and package services, shell | M2 |
 | `drivers` | Driver host, class frameworks, the mock-device rig, every first-party driver, each driver's `BEHAVIOR.md` | M3 |
 | `storage` | Block server, namespace server, native filesystem, package blob store, other filesystem readers, encryption | M3 |
 | `network` | Network stack, protocol services, TLS, firewall, Wi-Fi supplicant | M4 |
@@ -23,7 +23,7 @@ or release cadence.
 | `packages` | Build recipes for third-party software ported to the platform (Servo and others) | M7 |
 | `docs` | Source of the public documentation site; reference pages are generated from `idl` and `spec` | M4 |
 
-The five linked M0 repositories already exist on GitHub with `main` as their default branch. The specification lives in the workshop so it changes alongside the instructions and pins that depend on it. The remaining rows are planned repositories.
+The five linked M0 repositories and `system` exist on GitHub with `main` as their default branch. The specification lives in the workshop so it changes alongside the instructions and pins that depend on it. The remaining rows are planned repositories.
 
 Third-party drivers and apps live in their authors' own repositories and are
 published as packages. Nothing third-party is merged into these repos.
@@ -32,4 +32,4 @@ Do not create a repository before its milestone. An empty repository is noise.
 
 ## Dependencies
 
-Applications and services use the public IDL and libsys interfaces. The kernel does not import service implementations. The integration repository builds images and runs system tests against the revisions in its manifest.
+Applications and services use the public IDL and libsys interfaces. A repository that uses another's crates names them by path, as its sibling in the workshop: the workshop layout is the build layout. The kernel does not import service implementations. The integration repository builds images and runs system tests against the revisions in its manifest.

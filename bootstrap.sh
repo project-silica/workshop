@@ -15,7 +15,7 @@ pin_of() { # 40-hex commit pinned for $1, or empty
   awk -v r="$1" '$1 == r { print $2 }' "$pins" | grep -E '^[0-9a-f]{40}$' || true
 }
 
-for repo in idl kernel os .github; do
+for repo in idl kernel os system .github; do
   pin=$(pin_of "$repo")
   if [ -e "$repo" ]; then
     top=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null || true)

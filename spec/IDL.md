@@ -34,7 +34,7 @@ type     = "u8" | "u16" | "u32" | "u64" | "i8" | "i16" | "i32" | "i64" | "bool"
          | "cap" ("<" objtype ">")? | "endpoint" "<" pname ">"
          | ident                                   (a struct or enum of this protocol)
 objtype  = "Untyped" | "CapSpace" | "Thread" | "AddressSpace" | "Frame" | "Endpoint"
-         | "Notification" | "SchedContext" | "IoPort" | "Vcpu"
+         | "Notification" | "SchedContext" | "Hw" | "Vcpu"
 ```
 
 Semantic rules, each a compile error with file, line and column:

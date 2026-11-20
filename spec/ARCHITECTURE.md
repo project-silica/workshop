@@ -116,9 +116,22 @@ controller, timer, and early serial), process policy, naming, security policy.
 
 Escape hatch: object set and rights are versioned in `libsys`; adding an object type is additive.
 
+**Programs.** The kernel has no notion of a process. A program is what its parent makes with `silica-proc`: one
+Untyped set aside for it, from which come its CapSpace, its address space, its first thread, its image, stack and
+start-up record, and (half of it) its own Untyped to allocate from. It starts holding the few capabilities every
+program has (itself, its memory, an endpoint to its parent) and the ones its parent listed, in the order listed;
+nothing is inherited and there is nothing ambient to find. It ends by telling its parent, and the parent takes
+everything back by revoking the one Untyped. Accounting, quotas and kill are therefore that Untyped
+(`silica_rt` documents the convention; the kernel enforces only the capabilities).
+
+**Calls between programs.** One IDL message is one kernel message: its bytes as message words, its capabilities
+moved with it. A generated client talks through `silica_rt::ipc::Channel` (an endpoint capability); a provider
+runs `silica_rt::ipc::serve` around the generated `dispatch`. The provider learns who is calling from the badge of
+the capability the caller was given, which the caller cannot change.
+
 ## 7. Drivers
 
-Userspace processes. Each gets: MMIO Frame caps (and IoPort caps where the device needs them), Notifications bound to its interrupts, an
+Userspace processes. Each gets: MMIO Frame caps (and Hw caps for the I/O ports and interrupt lines the device needs), Notifications bound to its interrupts, an
 IOMMU domain, and nothing else. A driver host supervises and restarts them.
 Driver interfaces are IDL protocols per class (block, net, display, input,
 audio, usb-host, gpu).
