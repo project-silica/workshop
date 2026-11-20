@@ -210,6 +210,8 @@ Each session starts without memory of the last one. The checkout, the Git histor
 
 Work in vertical slices. Pick the user's requested outcome or the next missing behavior in `spec/MILESTONES.md`, and follow one useful operation all the way through the system. Saving a document means typing with real input, writing through the storage service, rebooting, and opening the same bytes. The first failure along that path tells you what to build next. Much of the spec describes a system that does not exist yet; build what the current slice calls for.
 
+Spend effort where the system is. Today the tools are far larger than the kernel, and `spec/TESTING.md` section 4 describes gates the benchmark and size tools do not yet implement. Bring a gate's tooling up to the spec in the slice that first produces something for it to measure, and leave it alone until then. Work on tools, tests of tools, or documents that runs ahead of the operating system itself is waste.
+
 Build your own eyes first. You can observe Silica only through the serial console, QEMU and the test logs, so symbolized panics, structured logs, a way to inspect capabilities and a debugger stub repay their cost on every later bug, and they are the same tools the owner will want.
 
 The foundation deserves your slowest, most careful work, because everything above inherits its mistakes. For the kernel, libsys, the IPC path and the first driver framework: test against the reference model, keep `unsafe` inside the modules listed in `spec/UNSAFE_MODULES.md` with the invariant stated at each use, and exercise the unhappy paths, such as a request outstanding while its device restarts, or a capability revoked in the middle of a call.
