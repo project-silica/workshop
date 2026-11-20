@@ -38,7 +38,7 @@ Change it on evidence. A prototype, a measurement, a failing client or a worked 
 
 The idea itself is the one thing you do not change alone. If you come to believe one of the five commitments is wrong or out of reach, bring that to the user with what you found.
 
-Push on the limits as well as the flaws. The gates in `spec/TESTING.md` compare Silica with Linux on the same hardware; treat them as a floor. Where Silica's structure allows a result Linux cannot reach, such as a driver that restarts inside a second with no lost writes, a boot measured in milliseconds, or an idle machine with no periodic wakeups, go and get it, and keep the measurement in the tree so it cannot quietly regress.
+Push on the limits as well as the flaws. The gates in `spec/TESTING.md` compare Silica with Linux on the same hardware; treat them as a floor. Where Silica's structure allows a result Linux cannot reach, such as a driver that restarts inside a quarter of a second with no lost writes, a boot measured in milliseconds, or an idle machine with no periodic wakeups, go and get it, and keep the measurement in the tree so it cannot quietly regress.
 
 The milestone order is a sensible default. Pull work forward when it unblocks real use or gives an interface its first real caller sooner. The Rust `std` backend is one example: it turns most of the crates ecosystem into Silica software, so it may be worth far more early than its place in the table suggests.
 

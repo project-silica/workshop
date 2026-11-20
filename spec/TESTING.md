@@ -36,9 +36,9 @@ Must win (gate fails otherwise, from the milestone listed):
 | Boot to first userspace process | faster | M2 |
 | Boot to network-ready server | faster | M4 |
 | Idle memory, server image | at most 25% of Linux baseline | M4 |
-| IPC round trip (same core) | under 2x a Linux `pipe` ping-pong | M2 |
+| IPC round trip (same core) | under half a Linux `pipe` ping-pong | M2 |
 | Context switch | at or below Linux | M2 |
-| Driver crash recovery: kill the virtio-blk and the virtio-net driver process during sustained I/O | service resumes within 1 s with no loss of committed writes. The Linux result for the equivalent fault (driver forcibly unbound under the same load) is recorded, not gated | M3 |
+| Driver crash recovery: kill the virtio-blk and the virtio-net driver process during sustained I/O | service resumes within 250 ms with no loss of committed writes. The Linux result for the equivalent fault (driver forcibly unbound under the same load) is recorded, not gated | M3 |
 | p99 scheduling latency under load | at or below Linux | M3 |
 | Cold start of a native app | faster | M6 |
 
@@ -48,7 +48,7 @@ Allowed to trail, tracked with a ceiling:
 | --- | --- | --- |
 | Small-file metadata throughput | within 1.5x | M5 |
 | TCP throughput, single stream | within 1.25x | M4 |
-| Block 4K random IOPS: virtio-blk from M5, NVMe added at M8 (when E05 lands) | within 1.25x, each against the same device on Linux | M5 |
+| Block 4K random IOPS: virtio-blk from M5, NVMe added at M8 (when E05 lands) | within 1.1x, each against the same device on Linux | M5 |
 
 A regression of more than 5% on any tracked metric fails the nightly. Size
 budgets from ARCHITECTURE.md section 2 are checked by `tools/test.sh --fast`.
