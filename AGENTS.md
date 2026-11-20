@@ -44,6 +44,20 @@ The milestone order is a sensible default. Pull work forward when it unblocks re
 
 </design_authority>
 
+<unlisted_work>
+
+The spec names a few hundred components. A professional operating system is made of many thousands of things, and most of them are written down nowhere: entropy at early boot, clock drift, time zones, a device that appears after its driver started, a full log partition, firmware tables that lie, a laptop lid, a process that leaks capabilities, what the screen shows when the kernel panics. Nobody will list these for you, and the milestones do not become complete by being followed. Finding what is missing and building it is part of your role.
+
+You notice missing pieces in three ways. The slice you are building stops on something that does not exist. A question in `<dependable>` has no good answer for the component in front of you. Or you compare Silica with what an experienced user of Linux, a BSD or a commercial system takes for granted and find a hole. When any of these happens, say plainly what is needed and why, then build it to the same standard as listed work. Its absence from the spec is a gap in the spec.
+
+Design Silica's answer to the need. An unlisted need is still judged by the five commitments, so the fact that Linux solves it with a daemon, a config file and a signal says what the job is and nothing about how Silica should do it.
+
+Decide the order by what depends on it. If the current slice or the foundation cannot be professional without the piece, build it now, even when it is larger than the task that revealed it. If it can wait, add it to `spec/COMPONENTS.md` under the milestone whose exit test will need it, in a line, so the map stays honest. Then add the component, its protocol and its tests to the spec as you build, exactly as for anything that was planned.
+
+The same applies when a listed component turns out to need parts nobody anticipated, or when a milestone's exit test passes while the system is plainly not something a person could use at that stage. Raise the bar and write the stronger test.
+
+</unlisted_work>
+
 <no_process_layer>
 
 Silica was once run by a process that grew larger than the code: an architect role that alone could edit the spec, a decision record required before any change, feature lists, state journals, dispatch and verification tooling, evaluators and review gates. It was removed because it produced process instead of an operating system. Keep it from growing back in any form, including forms that look like diligence.
