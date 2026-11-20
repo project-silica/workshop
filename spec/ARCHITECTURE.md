@@ -218,6 +218,7 @@ throughput and latency as the best existing driver for that device.
 5. **Performance by design.** Direct MMIO mapping; shared-memory rings with zero copies between driver and its consumer; batching; interrupt mitigation with a switch to polling under load; per-queue threads pinned to cores; huge-page DMA pools. A driver and its immediate consumer (NIC and network stack, NVMe and block server) may be linked into one process when measurement shows the IPC hop matters; the class protocol stays the same either way.
 6. **Verification against the reference.** For each driver: (a) run the reference driver and ours against the same device (emulated first, real hardware at M8), record the register traces, and compare initialization and steady-state sequences; (b) fault injection through the mock-device framework; (c) benchmark against the reference on the same hardware. Gate: within 10% of the reference on throughput and p99 latency, or the driver is not done.
 7. **Order of work.** Standard class drivers first (one driver covers every conforming device), then the parts of the two reference machines, then by community demand.
+8. **Finished.** A driver that passes its happy path in QEMU is a prototype. A finished driver negotiates features, handles every feature it accepts and relies only on behaviour the specification guarantees, because an emulator is more forgiving than hardware. It recovers from device errors, timeouts and resets, and a request outstanding during a restart completes or fails cleanly with nothing leaked. Its DMA is confined by the IOMMU and it holds no authority beyond its device. Its throughput and tail latency meet the gate in item 6. It reports link, media, error and statistics state in a form the owner can read. Where only emulated devices were available, the driver's documentation names the device models it was verified against and what still needs a physical machine; that is not described as hardware support.
 
 ## 16. System management
 
@@ -242,3 +243,34 @@ something else.
 - **Driver kit.** Class frameworks, the mock-device test rig, a template, and a guide, so a hardware vendor or volunteer can ship a driver package without touching the base system.
 - **Supported hardware list.** Short and honest: the reference machines are fully supported; everything else is listed with exactly what works.
 - **Documentation generated from source.** The IDL reference, the architecture book and the driver guide build from the repository and fail the build when out of date.
+
+## 18. How components connect
+
+Most of what makes a system pleasant or miserable lives in the seams: how a driver meets its class protocol, how a
+service finds the services it needs, how an application receives the capabilities it was granted, how a new
+device, package or update joins a running system. Each seam is decided on purpose, before the code on either side,
+and written into the protocol:
+
+- **Discovery.** How each side finds the other, and what the owner sees when it cannot.
+- **Authority.** Which capabilities cross, who grants them, and how they are revoked. The default is the least that does the job.
+- **Lifecycle.** Start order, readiness, restart, upgrade and removal, and what the other side observes during each.
+- **Failure.** What every error means, who recovers, and what state survives.
+- **Versioning.** How an older and a newer side keep working together.
+- **Cost.** Copies, round trips and wakeups per operation, measured.
+
+One mechanism serves each of these across the whole system. A driver, a service and an application are declared,
+started, granted authority, observed and updated in the same way, so learning one teaches the rest. Every special
+case at a seam is something each later author and administrator has to learn, and a place where policy can be
+bypassed.
+
+Each seam is judged by the people on the outside of it:
+
+- **The driver author** has a device, its datasheet and a weekend. They discover what the class protocol expects, write only what is specific to their hardware, see why a request failed, and survive their own crashes without rebooting.
+- **The application author** has the published bindings and the examples, and nothing else. Nothing existing runs on Silica, so the cost of writing or porting a program is the cost of the system's future.
+- **The owner** opens the hood: lists every process and what it may touch, reads every log, traces a request across services, scripts the system from a shell and swaps any component. Typed protocols are as inspectable from the command line as text files were.
+- **The end user** plugs in a device, installs an application or accepts an update, and it works. A decision that is theirs is asked once, in plain words, and can be undone in one obvious place.
+- **The company** describes a machine in one document and gets the same system every time, applies policy about what may run and what it may touch, rolls updates out and back, sees what every machine runs and which capabilities each component holds, and relies on interfaces staying compatible for years.
+
+Security, stability and ease come from the structure. The safe path is also the shortest path for an author, or it
+will be skipped. When ease of use seems to need a broader grant, a hidden global, a compatibility shim or another
+daemon, that is a design problem to solve within the size budgets.

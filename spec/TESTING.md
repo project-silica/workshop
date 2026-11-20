@@ -2,6 +2,33 @@
 
 Run `tools/test.sh --fast` for host tests, target builds and a QEMU boot. Run `--full` for host and guest coverage, Miri, loom and tool regressions, or `--deep` to include fuzzing. Run a single guest case with `--guest NAME`. Additional guest tests are listed in `kernel/tests/inos-<architecture>.txt`, one name per line. The result and failure details are available under `target/logs/`.
 
+## 1. What finished means
+
+A change is finished when the integrated image boots with it, a test exercises it through the interface a real
+caller would use, its failure path produces a message someone could act on, and its cost has been measured.
+
+Ask these of every component before calling it finished. They are what "professional" means for an operating system.
+
+- **Trust boundaries hold.** Nothing a less trusted party sends can crash, hang or confuse a more trusted one. The
+  kernel survives any syscall argument, a server any message, a driver a device that returns garbage, a parser any
+  bytes from disk or network.
+- **Committed data survives.** A power cut, a crash, a killed driver or a failed update never loses or corrupts
+  something the system reported as written.
+- **Every failure is handled and explained.** Each error path exists, is tested, and reports what failed and why
+  in terms the caller or the owner can act on. Running out of memory, queue space or capabilities is an error
+  returned to the caller.
+- **It behaves at the edges.** Under sustained load, at the limits (64 CPUs, 256 MB of RAM, a full disk), when a
+  device disappears mid-request, across suspend and resume, and after the component is killed and restarted.
+- **Timing comes from the hardware or the protocol.** A delay tuned until the test passed fails on the next machine.
+- **Authority is minimal and visible.** Each process holds the capabilities its job needs, and the owner can see them.
+- **Interfaces say what they mean.** A published protocol documents who owns each buffer and capability, what each
+  error means, what ordering is required and what happens on reset, generated from the source.
+- **Results repeat.** Builds are reproducible, tests are deterministic, and a performance claim comes with the
+  command that reproduces it.
+
+Tests verify correctness; they do not define the solution. Code that passes by special-casing the test's inputs is
+wrong, and a test that is itself wrong is fixed and the fix explained.
+
 ## 3. Oracles by layer
 
 An OS has no single reference implementation, so each layer gets its own.
@@ -57,6 +84,10 @@ it is meant to catch. These rules apply to every gate below.
 - **Real hardware has the last word.** Every gate is measured again on the reference machines at M8.
 
 ### 4.2 Gates
+
+The numeric limits below were set by judgment before anything could be measured. The first real measurement of
+each either confirms it or replaces it, with the measurement recorded beside the new number, and from then on the
+ratchet holds it.
 
 Kernel paths:
 
