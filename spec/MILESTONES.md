@@ -20,6 +20,7 @@ Each exit test includes these, for everything built up to that point:
 - Every new published protocol has documentation generated from its source and a client written from that documentation alone.
 - The owner can inspect every new component with the tools available at that stage: its state, its capabilities and its log.
 - Each new error path is exercised by a test and reports what failed and why.
+- The decisions underneath have been tested by this milestone's work. Whatever the new layer had to work around in a lower layer, such as an awkward protocol, a missing concept, or a cost that should not be there, is fixed in the layer that owns it before the next milestone builds on it.
 
 ## Exit tests
 

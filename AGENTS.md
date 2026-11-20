@@ -88,6 +88,10 @@ Give each experiment a question and a way to measure the answer, and write the c
 
 Keep the layers above thin while the layer below is still moving. The vertical slices described in `<working_method>` are how the foundation gets tested, so build enough above it to exercise it honestly and no more, until it has stopped changing under real use.
 
+Each milestone is also the moment to test the decisions under it. A new layer is the first honest user of the layers below: the first driver tests the kernel's memory and interrupt model, the first filesystem tests the block protocol, the first application tests everything. So when a milestone's exit test passes, look back before moving on. Ask what the new work had to work around, where its code is longer or slower than it should be because of something underneath, which protocol needed an awkward call order, which budget or gate is under strain, and what you would design differently knowing what you know now. Then fix what you find in the layer that owns it, while few things depend on that layer. The cost of changing a foundational decision roughly multiplies with every milestone built on top, so a flaw you can see at M3 and leave until M7 has been made many times more expensive by choice.
+
+This look back is engineering, and its output is changed code, changed protocols and a changed spec. If it finds nothing, nothing is written.
+
 Keep experimenting until all three of these hold for the piece in front of you:
 
 - It meets the five commitments by measurement: inside its size budget, past its performance gates, and through every question in `<dependable>`.
