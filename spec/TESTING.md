@@ -105,6 +105,10 @@ Kernel paths:
 
 Whole operations, which carry the cost a microkernel adds between servers:
 
+A gate of the form "within Nx" is the floor for the milestone that introduces the path, and it permits Silica to be
+slower than Linux. The destination does not: every one of these is also a ratchet, and the system is not finished
+until each is at or better than Linux on the same hardware (`AGENTS.md`, commitment 5).
+
 | Metric | Gate | From |
 | --- | --- | --- |
 | Open, read 4 KiB, close, through application, filesystem, block server and driver | within 1.5x of Linux | M5 |
