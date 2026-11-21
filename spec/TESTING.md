@@ -102,6 +102,18 @@ it is meant to catch. These rules apply to every gate below.
   restoring the faulting thread's vector state (skipping it changed nothing), and exits to the hypervisor (none per
   fault). The instruction count went from 2761 to 2765: each of the fault's two hand-offs now tests whether another
   processor woke a thread meanwhile, without which that wake could be dropped.
+- **Variants side by side.** `tools/bench.sh --compare <commit>` runs the kernel at that commit and the working tree,
+  and `--sweep NAME=v1,v2,...` runs the working tree built once per value of a build-time constant
+  (`kernel_core::tuned`, read from `SILICA_TUNE_<NAME>`; an ordinary build has plain constants), with their boots
+  interleaved on the held host. This is how a constant gets its value and how a change is shown to have paid: the
+  table goes beside the number it justified. It is an instrument; it gates and records nothing. First use: how long an
+  idle processor watches for work before it halts (`IDLE_WATCH_NS`, ARCHITECTURE.md, Time).
+- **Linux is given the same technique.** When Silica gains one that Linux has as an option, the baseline turns it on:
+  the baseline now idles with `cpuidle-haltpoll` (forced on, Linux's own adaptive poll time), which took its
+  cross-processor round trips from 165,000 to 400,000 a second on one pair.
+- **A factor is not a throughput.** `ipc_cross_scaling` (four pairs over one) went from 4.5 to 3.8 when the idle
+  watch made one pair 4.8 times faster and four pairs 4.1 times: both throughputs rose, and a factor above 4 had only
+  ever meant that one pair was slow. Its ratchet was set to the new value; the throughputs carry the gate.
 - **Same payload, same statistics.** The Silica and Linux benchmark programs (`kernel/roottest` bench mode and
   `os/bench/linux/init.c`) send the same bytes, take the same number of samples after the same warm-up, and report
   the same minimum, median and 99th percentile. Each system does what its own ABI requires for the program to
