@@ -1,6 +1,6 @@
 # Silica
 
-Silica is an operating system built on a small capability microkernel written in Rust: typed calls between programs, drivers and services outside the kernel, no `fork`, signals, TTYs, uid 0 or global namespace. Today the kernel runs on x86_64 with multiple processors under QEMU, starts programs in their own address spaces, and carries protocol calls and capabilities between them. The design, the milestones and what finished means are in [`spec/`](spec/README.md).
+Silica is an operating system built on a small capability microkernel written in Rust: typed calls between programs, drivers and services outside the kernel, no `fork`, signals, TTYs, uid 0 or global namespace. Today the kernel runs on x86_64 and aarch64 with multiple processors under QEMU, starts programs in their own address spaces, and carries protocol calls and capabilities between them; `./tools/boot.sh --arch aarch64` boots the Arm build. The design, the milestones and what finished means are in [`spec/`](spec/README.md).
 
 ## Build and boot
 

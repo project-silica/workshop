@@ -152,4 +152,6 @@ From the workshop root: `./bootstrap.sh` obtains the pinned repositories, `./too
 
 A `MILESTONE` file in the workshop root holds the current milestone number (absent means 0). The tools use it to decide which budgets and architectures are required; raise it when a milestone's exit test passes.
 
+`/tmp` on this machine is RAM (tmpfs, 8 GB, per-user quota); when it fills, emulator boots and shell commands fail in misleading ways. Keep scratch files, logs, traces and checkouts under `target/`, and point `TMPDIR` there for anything large.
+
 </workspace>
