@@ -77,8 +77,9 @@ it is meant to catch. These rules apply to every gate below.
 - **Ratchets.** Each metric keeps its best recorded result in the repository (`os/bench/ratchet.tsv`): the ratio to
   Linux measured in the same session, which carries from one host to another, or the value itself where Linux has
   no equivalent. A regression is a result worse than that best by more than the measured noise (three median
-  absolute deviations, of both systems for a ratio), so slow creep cannot pass, and an improvement moves the
-  ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone.
+  absolute deviations, of both systems for a ratio, and for a timing at least 1%, which is how closely a timing
+  repeats from one session to the next on the reference host), so slow creep cannot pass, and an improvement moves
+  the ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone.
 - **Same payload, same statistics.** The Silica and Linux benchmark programs (`kernel/roottest` bench mode and
   `os/bench/linux/init.c`) send the same bytes, take the same number of samples after the same warm-up, and report
   the same minimum, median and 99th percentile. Each system does what its own ABI requires for the program to
@@ -86,8 +87,10 @@ it is meant to catch. These rules apply to every gate below.
   is tuned as a latency-sensitive program would be (for timers: no timer slack).
 - **Throughput is compared, not scaling.** A scaling factor (8 pairs over 1 pair) compares a system with itself:
   it is gated by its own floor, while the throughputs it is made of are each gated against Linux.
-- **Observed from the host wherever possible.** Boot times are stamped by the host between QEMU start, the first
-  serial byte and the ready marker. Memory is the pages the guest touched. Lost writes are verified by the host
+- **Observed from the host wherever possible.** Boot times are stamped by the host from the firmware starting the
+  boot option to the ready marker: the firmware before that is the same code for both systems and moves by tens of
+  milliseconds from boot to boot, more than an operating system's own boot takes, so it is reported beside the
+  result and not gated. Memory is the pages the guest touched. Lost writes are verified by the host
   reading the disk image. Idle wakeups are vCPU exits. A guest's own report is used only for what the host cannot
   see.
 - **Efficiency where emulation hides throughput.** Under QEMU the host bounds I/O throughput for both systems, so
