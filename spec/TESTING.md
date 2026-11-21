@@ -67,7 +67,11 @@ it is meant to catch. These rules apply to every gate below.
   never gated, because emulated instruction cost says nothing about cache, TLB or mode-switch cost.
 - **Deterministic gates for fixed paths.** IPC, syscall entry and exit, context switch and page-fault delivery are
   also gated by instruction count (QEMU `-icount`, or hardware counters). The count has no noise, so any increase
-  fails until the commit that causes it explains it.
+  fails until the commit that causes it explains it. The count of one benchmark is the difference between a boot
+  that runs it twice and a boot that runs it once, so boot work cancels out exactly.
+- **Profiles are part of the instrument.** `tools/profile.sh` attributes a benchmark's kernel instructions (TCG
+  with icount) or its processor cycles (KVM, the host's `perf` sampling the guest) to functions and source lines.
+  A regression is explained with a profile of both commits, not by reasoning about the diff.
 - **Enough samples, and the spread reported.** A micro-benchmark runs at least 10,000 iterations in the guest and
   reports minimum, median and p99. A boot-level metric takes at least 10 boots. Results carry their dispersion.
 - **Ratchets.** Each metric keeps its best recorded result in the repository (`os/bench/ratchet.tsv`): the ratio to
@@ -78,7 +82,10 @@ it is meant to catch. These rules apply to every gate below.
 - **Same payload, same statistics.** The Silica and Linux benchmark programs (`kernel/roottest` bench mode and
   `os/bench/linux/init.c`) send the same bytes, take the same number of samples after the same warm-up, and report
   the same minimum, median and 99th percentile. Each system does what its own ABI requires for the program to
-  continue correctly: Linux preserves vector registers across a system call, Silica does not.
+  continue correctly: Linux preserves vector registers across a system call, Silica does not. The Linux program
+  is tuned as a latency-sensitive program would be (for timers: no timer slack).
+- **Throughput is compared, not scaling.** A scaling factor (8 pairs over 1 pair) compares a system with itself:
+  it is gated by its own floor, while the throughputs it is made of are each gated against Linux.
 - **Observed from the host wherever possible.** Boot times are stamped by the host between QEMU start, the first
   serial byte and the ready marker. Memory is the pages the guest touched. Lost writes are verified by the host
   reading the disk image. Idle wakeups are vCPU exits. A guest's own report is used only for what the host cannot
