@@ -57,7 +57,7 @@ payload.
 
 | Offset | Type | Field |
 | --- | --- | --- |
-| 0 | u32 | method ordinal (non-zero) |
+| 0 | u32 | method ordinal: non-zero, except in a `malformed_request` reply to a request too short to carry one or carrying 0 |
 | 4 | u16 | flags: bit 0 = reply; other bits zero (a set reserved bit is malformed) |
 | 6 | u16 | status: 0 in every request; in a reply, see below |
 | 8 | u32 | protocol version of the sender (informational; never a reason to reject) |
@@ -198,6 +198,8 @@ How skew is tolerated, by construction:
   field is malformed.
 - An unknown enum value decodes to an `Unknown(raw)` variant in generated code; it is not malformed.
 - An unknown method ordinal gets a reply with status `unknown_method`.
+- A reply carries the ordinal of its request. A request whose header is malformed gets `malformed_request` with the
+  ordinal it carried, or 0 when it carried none; the provider answers every request, so its caller never waits on one.
 
 ## 5. What the caller observes (transport contract)
 
