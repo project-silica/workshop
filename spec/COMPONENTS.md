@@ -50,10 +50,10 @@ component when a working slice calls for it.
 - C15 Resource accounting, quotas, kill and teardown as userspace policy over Untyped revocation (no kernel code)
 - C26 Bloat gates in `tools/size.sh`: kernel line count, syscall count, object-type count, static proof of no allocator in the kernel crate
 - C16 IOMMU (VT-d, AMD-Vi, SMMUv3) domains as capabilities
-- C17 ACPI table parsing (static tables in kernel; AML interpreter in userspace, see E03)
+- C17 ACPI table parsing (static tables in kernel; AML interpreter in userspace, see E03). `formats::acpi` is the shared reader of untrusted tables (RSDP to XSDT to a table, the DSDT, a device's fixed `_CRS`), used by roottest to find a device; the two architectures' own table walks in the kernel move onto it
 - C18 CPU feature detection, mitigations selection, microcode load hook
 - C19 KASLR, W^X, SMEP/SMAP/CET, stack guards
-- C20 Entropy source and kernel CSPRNG
+- C20 Boot entropy: the loader hashes (BLAKE2s) the firmware RNG, the CPU generator (RDSEED/RDRAND, RNDRRS/RNDR) and timing jitter; the kernel's slide and the root task's secret are keyed derivations of the seed, and `RootInfo::entropy_sources` says which trusted sources went in. No CSPRNG in the kernel: nothing in it needs randomness after boot (the entropy service is D14)
 - C21 Power: idle states (C-states), frequency hints (HWP/CPPC), suspend/resume hooks (M8)
 - C22 Virtualization objects: Vcpu, guest address space (VMX/SVM, EL2) (M9)
 - C23 Debug: kernel log ring, tracepoints, serial debugger stub, crash dump writer

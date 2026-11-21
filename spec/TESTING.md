@@ -79,7 +79,13 @@ it is meant to catch. These rules apply to every gate below.
   no equivalent. A regression is a result worse than that best by more than the measured noise (three median
   absolute deviations, of both systems for a ratio, and for a timing at least 1%, which is how closely a timing
   repeats from one session to the next on the reference host), so slow creep cannot pass, and an improvement moves
-  the ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone.
+  the ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone. A ratchet moves the
+  other way only for a cost the system chose to pay, shown by benchmarking the kernel before and after the change in
+  one session on one host, with both results written beside the new value in the spec section that owns the cost.
+  Open problem (2026-11-21): the 1% repeatability does not hold. The pinned kernel of the previous day measured again
+  reads `null_syscall` 55 ns against its ratchet of 52, `timer_overshoot_p99` 13% and `ipc_cross_pairs4` 1.5% worse,
+  and `insns_page_fault` one instruction more, so those four fail `--deep` with no change to Silica. Until the cause
+  (host state, or something the measurement does not hold still) is found and fixed, they stay failing.
 - **Same payload, same statistics.** The Silica and Linux benchmark programs (`kernel/roottest` bench mode and
   `os/bench/linux/init.c`) send the same bytes, take the same number of samples after the same warm-up, and report
   the same minimum, median and 99th percentile. Each system does what its own ABI requires for the program to
