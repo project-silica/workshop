@@ -27,7 +27,7 @@ component when a working slice calls for it.
 - B03 Early serial console, early framebuffer console
 - B04 Secure Boot signing, measured boot (TPM2 PCR extend) (M5)
 - B05 aarch64 boot (UEFI, device tree + ACPI), riscv64 boot (SBI) (M2, M8)
-- B08 aarch64 completion for M2: the other processors (PSCI CPU_ON, the trampoline into the kernel's tables), ASIDs so an address-space switch keeps the TLB, a device for the irq test on aarch64, E0PD so user reads of kernel addresses fault alike whether mapped or not (M2)
+- B08 aarch64 completion for M2: guard pages below the kernel stacks (the boot stack and the other processors' stacks in the physical map have none), ASIDs so an address-space switch keeps the TLB, a device for the irq test on aarch64, E0PD so user reads of kernel addresses fault alike whether mapped or not (M2)
 - B06 Kernel command line and boot config
 - B07 A/B slot selection and rollback counter (M5)
 
