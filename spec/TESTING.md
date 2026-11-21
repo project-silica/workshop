@@ -94,8 +94,14 @@ it is meant to catch. These rules apply to every gate below.
   counts kept. The two timer metrics still move 20 to 35% between sessions of one kernel (they are the host waking a
   virtual processor), so their ratchets allow that much and the same-session gate against Linux is what holds them;
   to compare two kernels on them, interleave their boots.
-- **Known failure.** Page fault resolved by a userspace pager: 821 ns against 801 ns for a Linux minor fault (1.025).
-  The gate fails until the path is faster; the instruction count is 3 over its ratchet (2764 against 2761).
+- **What the held host found.** The page fault was 2.5% behind a Linux minor fault (821 ns against 801). A third of
+  it was not Silica's path at all: the first write to a freshly mapped page took 620 timestamp ticks where the next
+  cache line took 6, because the kernel wrote page-table entries with the accessed and dirty bits clear and the
+  processor set them itself, by microcode assist, on first use. Entries now carry both from the start (as Linux
+  writes them): 569 ns against 804, ratio 0.71. Two hypotheses were measured and discarded on the way: saving and
+  restoring the faulting thread's vector state (skipping it changed nothing), and exits to the hypervisor (none per
+  fault). The instruction count went from 2761 to 2765: each of the fault's two hand-offs now tests whether another
+  processor woke a thread meanwhile, without which that wake could be dropped.
 - **Same payload, same statistics.** The Silica and Linux benchmark programs (`kernel/roottest` bench mode and
   `os/bench/linux/init.c`) send the same bytes, take the same number of samples after the same warm-up, and report
   the same minimum, median and 99th percentile. Each system does what its own ABI requires for the program to
