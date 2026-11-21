@@ -43,7 +43,7 @@ An OS has no single reference implementation, so each layer gets its own.
 | IDL protocols | Generated round-trip and version-skew tests; fuzz every server's decoder. |
 | Filesystem | Differential test against an in-memory model; crash-consistency by cutting writes at every block boundary and remounting; image fuzzer; fsck must agree with the model. |
 | Network | Interop against the host Linux stack over TAP for every protocol; TCP state machine against scripted packet traces; RFC conformance vectors for TLS and QUIC; packet fuzzer on every parser. |
-| Drivers | virtio against QEMU's device models; NVMe, AHCI, xHCI, HDA and e1000e against QEMU emulation; a mock-device framework that replays recorded MMIO traces and injects faults. Each driver is also compared against a reference driver on the same device by register trace, and must benchmark within 10% of it. Real hardware is M8 and needs a human. |
+| Drivers | virtio against QEMU's device models; NVMe, AHCI, xHCI, HDA and e1000e against QEMU emulation; a mock-device framework that replays recorded MMIO traces and injects faults. Each driver is also compared against a reference driver on the same device by register trace, and must benchmark at or better than it. Real hardware is M8 and needs a human. |
 | Language targets | For each supported language: the generated bindings pass a shared conformance suite (same calls, same results as the Rust bindings); the language's own standard-library test suite runs on the OS with failures enumerated in a known-failures list per language, which may only shrink. |
 | WASI | The official WASI test suite, vendored. |
 | Graphics | Renderer output compared to `tiny-skia` reference with perceptual tolerance; compositor scenes captured by QEMU screendump and compared to goldens in `tests/golden/`. Review golden changes against the rendered output. |
@@ -100,11 +100,11 @@ Kernel paths:
 | Metric | Gate | From |
 | --- | --- | --- |
 | IPC round trip, same core, between two address spaces | under half a Linux `pipe` ping-pong; instruction count ratchet | M2 |
-| Null system call | at or below Linux `getppid`; ratchet | M2 |
-| IPC round trip, cross core, and with one capability transferred | ratchet | M2 |
+| Null system call | at or below Linux `getppid`; instruction count ratchet | M2 |
+| IPC round trip, cross core, and with one capability transferred | at or below Linux (pipe ping-pong across cores); instruction count ratchet | M2 |
 | IPC throughput, 8 independent pairs on 8 cores | at least 7x one pair | M2 |
-| Context switch between address spaces, FPU state live | at or below Linux | M2 |
-| Page fault resolved by a userspace pager | ratchet; Linux minor fault recorded | M2 |
+| Context switch between address spaces, FPU state live | at or below Linux; instruction count ratchet | M2 |
+| Page fault resolved by a userspace pager | at or below a Linux minor fault; instruction count ratchet | M2 |
 | Process spawn to the child's first instruction | faster than Linux `fork`+`exec` of a static binary | M3 |
 | Empty process: kernel objects plus runtime, in bytes | ratchet | M2 |
 | Timer: sleep overshoot p99 | at or below Linux | M2 |
@@ -112,18 +112,18 @@ Kernel paths:
 
 Whole operations, which carry the cost a microkernel adds between servers:
 
-A gate of the form "within Nx" is the floor for the milestone that introduces the path, and it permits Silica to be
-slower than Linux. The destination does not: every one of these is also a ratchet, and the system is not finished
-until each is at or better than Linux on the same hardware (`AGENTS.md`, commitment 5).
+No gate permits Silica to be slower than Linux, at any milestone. A path that cannot match Linux when it is first
+built shows that the architecture under it is wrong, and that is cheapest to fix before anything is built on it; a
+gate that let it through would defer the discovery to a rewrite. Every gate is also a ratchet.
 
 | Metric | Gate | From |
 | --- | --- | --- |
-| Open, read 4 KiB, close, through application, filesystem, block server and driver | within 1.5x of Linux | M5 |
-| 4 KiB write plus sync, p99 | within 1.25x | M5 |
-| Small-file metadata throughput | within 1.5x | M5 |
-| Block I/O: guest CPU per operation at a fixed rate, virtio-blk from M3, NVMe from the milestone its driver lands | within 1.1x, each against the same device on Linux | M3 |
+| Open, read 4 KiB, close, through application, filesystem, block server and driver | at or below Linux | M5 |
+| 4 KiB write plus sync, p99 | at or below Linux | M5 |
+| Small-file metadata throughput | at or above Linux | M5 |
+| Block I/O: guest CPU per operation at a fixed rate, virtio-blk from M3, NVMe from the milestone its driver lands | at or below Linux, each against the same device | M3 |
 | HTTP request p99 latency at a fixed rate, 64 connections | at or below Linux | M4 |
-| TCP: guest CPU per gigabyte at a fixed rate | within 1.25x | M4 |
+| TCP: guest CPU per gigabyte at a fixed rate | at or below Linux | M4 |
 
 System:
 
