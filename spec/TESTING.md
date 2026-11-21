@@ -86,7 +86,9 @@ it is meant to catch. These rules apply to every gate below.
 - **Efficiency where emulation hides throughput.** Under QEMU the host bounds I/O throughput for both systems, so
   I/O gates measure guest CPU time per operation at a fixed rate; raw throughput is recorded.
 - **A gate must be able to fail.** Each gate has a test that plants a regression and sees the gate fail. A metric
-  that is missing at its milestone fails. A check on something that does not exist yet reports SKIP, never pass.
+  that is missing at its milestone fails. A check on something that does not exist yet reports SKIP, never pass. A
+  result that exists and misses its gate (slower than Linux, over its budget, worse than its ratchet) fails at every
+  milestone: the milestone column says when a metric must exist, never when it may lose.
 - **Real hardware has the last word.** Every gate is measured again on the reference machines at M8.
 
 ### 4.2 Gates
