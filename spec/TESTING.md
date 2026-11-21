@@ -160,4 +160,8 @@ measurement apply:
 ### 4.4 Fuzzing
 
 A fuzzer that runs clean for ten minutes proves little if it reaches a tenth of the code. A fuzz gate states the
-coverage it reached on the target, keeps its corpus, and fails when coverage drops.
+coverage it reached on the target, keeps its corpus, and fails when coverage drops. The corpus is committed beside
+the target, minimized (`<crate>/fuzz/corpus/<target>`), and the floor is the coverage libFuzzer reports on loading
+it (`<crate>/fuzz/coverage-floor.tsv`): a number that does not depend on time or luck, checked before every run,
+so a fresh clone gates exactly what a long-lived workstation does. `tools/fuzz.sh --save` updates both; a floor goes
+down only in a commit that says why. `tools/test.sh --deep` fuzzes each target for ten minutes.
