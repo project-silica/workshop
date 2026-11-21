@@ -82,10 +82,20 @@ it is meant to catch. These rules apply to every gate below.
   the ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone. A ratchet moves the
   other way only for a cost the system chose to pay, shown by benchmarking the kernel before and after the change in
   one session on one host, with both results written beside the new value in the spec section that owns the cost.
-  Open problem (2026-11-21): the 1% repeatability does not hold. The pinned kernel of the previous day measured again
-  reads `null_syscall` 55 ns against its ratchet of 52, `timer_overshoot_p99` 13% and `ipc_cross_pairs4` 1.5% worse,
-  and `insns_page_fault` one instruction more, so those four fail `--deep` with no change to Silica. Until the cause
-  (host state, or something the measurement does not hold still) is found and fixed, they stay failing.
+- **The host is held still.** `tools/bench.sh` puts the measured processors on the `performance` governor, switches off
+  idle states slower than 20 us on them and turbo on the machine, for both systems, and restores what it found. Left
+  on its power-saving default the host measured itself: turbo gave a core 5.2 or 4.9 GHz depending on how many others
+  were awake, so one kernel read a null system call at 53 ns in one boot and 55 ns in the next (84 ns in five boots of
+  five once held), and a quiet Silica guest got a faster core than a Linux guest with its housekeeping, which flattered
+  every ratio: the page fault read 6% ahead of Linux and is 2.5% behind at one frequency. Deep idle states were most
+  of the timer overshoot (p99 83 us to about 9 us; Linux 135 to 28). Absolute timings are therefore at the processor's
+  base frequency; a result from a host that could not be held (no privilege) says so and records no ratchet. Values
+  from the held host are a host of their own (`+tuned`); the ratios recorded before were restarted, the instruction
+  counts kept. The two timer metrics still move 20 to 35% between sessions of one kernel (they are the host waking a
+  virtual processor), so their ratchets allow that much and the same-session gate against Linux is what holds them;
+  to compare two kernels on them, interleave their boots.
+- **Known failure.** Page fault resolved by a userspace pager: 821 ns against 801 ns for a Linux minor fault (1.025).
+  The gate fails until the path is faster; the instruction count is 3 over its ratchet (2764 against 2761).
 - **Same payload, same statistics.** The Silica and Linux benchmark programs (`kernel/roottest` bench mode and
   `os/bench/linux/init.c`) send the same bytes, take the same number of samples after the same warm-up, and report
   the same minimum, median and 99th percentile. Each system does what its own ABI requires for the program to
