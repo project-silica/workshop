@@ -27,7 +27,7 @@ component when a working slice calls for it.
 - B03 Early serial console, early framebuffer console
 - B04 Secure Boot signing, measured boot (TPM2 PCR extend) (M5)
 - B05 aarch64 boot (UEFI, device tree + ACPI), riscv64 boot (SBI) (M2, M8)
-- B08 aarch64 completion for M2: guard pages below the kernel stacks (the boot stack and the other processors' stacks in the physical map have none), ASIDs so an address-space switch keeps the TLB, a device for the irq test on aarch64, E0PD so user reads of kernel addresses fault alike whether mapped or not (M2)
+- B08 aarch64 completion for M2: ASIDs so an address-space switch keeps the TLB, a device for the irq test on aarch64, E0PD so user reads of kernel addresses fault alike whether mapped or not (M2)
 - B06 Kernel command line and boot config
 - B07 A/B slot selection and rollback counter (M5)
 
@@ -59,7 +59,7 @@ component when a working slice calls for it.
 - C23 Debug: kernel log ring, tracepoints, serial debugger stub, crash dump writer
 - C24 Performance counters interface
 - C27 Capability transfer through an endpoint (derive, duplicate or move, chosen by the sender), and a saved-caller reply capability so a server can answer calls out of order (M2)
-- C28 Address-space table memory: grow a live AddressSpace's pool, give emptied tables back, PCID so a switch keeps the TLB (M2)
+- C28 Address-space table memory: grow a live AddressSpace's pool (on 64 vCPUs, roottest smp_run exhausts the root pool mapping its sparse thread stacks), give emptied tables back, PCID so a switch keeps the TLB (M2)
 - C29 Notification bound to a thread, so one receive waits on an endpoint and on interrupts (M3)
 - C31 Finer locks for capability and mapping operations once a measurement shows the all-processors lock or the single mapping lock limiting a workload (parallel page faults, process creation on many cores)
 - C30 Early framebuffer console for the kernel's own messages on machines with no serial port (M3, with the local console)
