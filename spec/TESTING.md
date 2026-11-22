@@ -28,6 +28,11 @@ Ask these of every component before calling it finished. They are what "professi
 - **Results repeat.** Builds are reproducible, tests are deterministic, and a performance claim comes with the
   command that reproduces it.
 
+`tools/repro.sh --system` builds x86_64 twice in different directories with independent caches. It compares
+the kernel ELF, UEFI loader, kernel test disk and the bootable system disk, including the service and driver
+manifests and their programs. The full tier also plants a clock-derived disk GUID in a disposable checkout
+and requires the checker to identify the differing disk and keep both copies for inspection.
+
 Tests verify correctness; they do not define the solution. Code that passes by special-casing the test's inputs is
 wrong, and a test that is itself wrong is fixed and the fix explained.
 
