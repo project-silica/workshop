@@ -13,6 +13,7 @@ component when a working slice calls for it.
 - A04 QEMU runner with serial capture, timeout, exit-code device, screendump
 - A05 Host test harness for `kernel-core` (std build), Miri and loom jobs
 - A06 IDL compiler: `.idl` -> Rust client/server stubs, wire format, versioning checks
+- A13 IDL runtime: a client encodes into, and decodes from, its transport's own buffer (the thread's IPC buffer) instead of two 4,000-byte buffers of its own and a copy each way (M3)
 - A07 Fuzz harness scaffolding, coverage reporting
 - A08 CI script runnable locally (`tools/ci.sh`) with fast and nightly tiers
 - A09 Symbolizer and panic/backtrace decoder for serial logs
@@ -63,7 +64,7 @@ component when a working slice calls for it.
 - C29 Notification bound to a thread, so one receive waits on an endpoint and on interrupts (M3)
 - C31 Finer locks for capability and mapping operations once a measurement shows the all-processors lock or the single mapping lock limiting a workload (parallel page faults, process creation on many cores)
 - C32 Interrupt remapping (VT-d): message interrupts checked against the device allowed to send them, compatibility-format messages refused, so no device forges another's interrupt; needed too for processors numbered above 255 (M3)
-- C33 AMD-Vi on x86_64; SMMUv3 and message interrupts through the GIC's ITS on aarch64, where drivers have no interrupts yet (M3 for the ITS: the system image fails at its first driver on aarch64 until then)
+- C33 AMD-Vi on x86_64; SMMUv3 on aarch64 (its message interrupts, through the GICv3 ITS, are built; two-level ITS device tables and the IORT's requester-ID mapping read rather than assumed are owed)
 - C34 The firmware's requested device mappings (RMRR) honoured or the devices reset before translation is switched on; refused device accesses delivered to the device manager instead of only logged; per-processor interrupt vector tables when 192 lines are too few (M8)
 - C35 The x86 harness exit (debug-exit port) only when the command line says a harness is there, as `exit=semihosting` does on Arm (M8)
 - C30 Early framebuffer console for the kernel's own messages on machines with no serial port (M3, with the local console)
