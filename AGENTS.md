@@ -110,7 +110,7 @@ Spend effort where the system is. The tools are currently far larger than the ke
 
 <working_method>
 
-Each session starts without memory of the last, but the tools remember what has been shown. Git history, the tests and the spec are the state, so begin with the recent commits of the repositories you will touch, `./tools/test.sh --fast` (held, or under a minute) and `./tools/test.sh --plan --full` (runs nothing; says what this tree still owes and why). Then build. What the last commit says it ran, it ran: verifying it again is not a way to start. Commit working states, and say in each commit what ran and what a user or developer can now do.
+Each session starts without memory of the last, but the tools remember what has been shown. Git history, the tests and the spec are the state, so begin with the recent commits of the repositories you will touch and the next missing behaviour in `MILESTONES.md`, and start building it. The tree is as the last commit left it, and what that commit says it ran, it ran. Most of a session is writing Silica's code; a test runs when a change you made gives it something new to say. Commit working states, and say in each commit what ran and what a user or developer can now do.
 
 Work in vertical slices. Take the user's requested outcome or the next missing behaviour in `MILESTONES.md` and follow one useful operation through the whole system. The first failure along that path is what to build next.
 
