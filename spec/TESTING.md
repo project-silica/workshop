@@ -132,15 +132,15 @@ it is meant to catch. These rules apply to every gate below.
 - **Linux is locked.** Linux is the yardstick, not what is being built, and its numbers on a given host do not
   change. They are written down once, in `os/bench/reference.tsv` (per metric: Linux at its best, its best session
   median, over the clean sessions of 2026-11-22 on the reference host: eight sessions of five boots for the kernel
-  paths, two for boot and the devices), and `tools/bench.sh` compares Silica with that file. No run boots Linux.
+  paths, two for boot and the devices), and `tools/bench.sh` compares Silica with that file. Every boot of a run is Silica's.
   Silica's target on every metric with a Linux equivalent is **15% better than the locked number** (a ratio of at
   most 0.85; a metric whose own limit is stricter, such as the IPC round trip at half, keeps it). The margin is
   what makes the lock sound: across those sessions Linux's medians moved by 1 to 4% (its 99th percentiles by up to
   16%), so a result at its target is ahead of Linux by more than Linux moves, and nothing has to be measured again
   to say so. It also sets the direction: matching Linux is not the goal. Before this rule every session booted
   Linux ten times (60% of its timed boots) to learn the same numbers again, and two sessions disagreed about
-  Linux by more than Silica had changed. Linux has been measured and is not measured again, for any metric or
-  reason: a metric with no number in the file is gated by its ratchet alone.
+  Linux by more than Silica had changed. These numbers are final: every run compares with them as they
+  stand, and a metric with no number in the file is gated by its ratchet alone.
 - **Silica is measured once per state of its sources**, in two groups with their own boots (the kernel paths; the
   devices), each kept under what it is a function of (`tools/lib/evidence.sh`: the sources, the image, the
   emulator, the host, the function that boots the machine). A change to a driver boots the system image and
@@ -194,8 +194,8 @@ it is meant to catch. These rules apply to every gate below.
   paragraph in the section that owns the path saying what was learned; the work then goes on, and the gap is
   closed before the milestone is.
 - **Linux is the yardstick, not the product.** The baseline's kernel, config, benchmark program and virtual
-  machine were corrected twice before the numbers were locked (MSI, and idle polling) and do not change again,
-  least of all to explain a gap: a gap is closed in Silica, or recorded. What pushes Silica on is its own ratchet: every improvement becomes the floor, at 15% past
+  machine were corrected twice before the numbers were locked (MSI, and idle polling) and are final: a gap is
+  closed in Silica, or recorded. What pushes Silica on is its own ratchet: every improvement becomes the floor, at 15% past
   Linux as anywhere else, until a path has nothing left to give.
 - **The host is held still.** `tools/bench.sh` puts the measured processors on the `performance` governor, switches off
   idle states slower than 20 us on them and turbo on the machine, for both systems, and restores what it found. Left
@@ -256,7 +256,7 @@ it is meant to catch. These rules apply to every gate below.
 - **One machine so far.** Every timing recorded here is from one Intel desktop processor (i9-12900K, performance
   cores) under KVM. aarch64 has run only under emulation, where timings mean nothing, and nothing has run on bare
   metal or on AMD. "Faster than Linux" is shown for that machine and no other. On a second x86 vendor, on
-  real aarch64 and without a hypervisor Silica is held by its ratchets and Linux is not measured; a constant chosen
+  real aarch64 and without a hypervisor Silica is held by its ratchets; a constant chosen
   by a sweep (the idle watch) is re-swept there or replaced by a boot-time measurement.
 - **A factor is not a throughput.** `ipc_cross_scaling` (four pairs over one) went from 4.5 to 3.8 when the idle
   watch made one pair 4.8 times faster and four pairs 4.1 times: both throughputs rose, and a factor above 4 had only
@@ -290,8 +290,8 @@ The numeric limits below were set by judgment before anything could be measured.
 each either confirms it or replaces it, with the measurement recorded beside the new number, and from then on the
 ratchet holds it.
 
-A gate below that names Linux, for a metric with no number in `os/bench/reference.tsv`, is held by its ratchet;
-Linux is not measured to supply one.
+A gate below that names Linux applies through the metric's number in `os/bench/reference.tsv`; a metric without
+one is held by its ratchet from its first measurement.
 
 Kernel paths:
 
