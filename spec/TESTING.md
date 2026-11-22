@@ -1,6 +1,8 @@
 # Testing Silica
 
-Run `tools/test.sh --fast` for host tests, target builds and a QEMU boot. Run `--full` for host and guest coverage, Miri, loom and tool regressions, or `--deep` to include fuzzing. Miri runs every kernel-core test in a process of its own, many at a time (built once; the same tests and flags as `cargo miri test`): run one after another they took 55 minutes of every full run, nearly all of it in the slowest few. A Miri run that finds no test is a failure, as is a test Miri stops without a result. Run a single guest case with `--guest NAME`. Additional guest tests are listed in `kernel/tests/inos-<architecture>.txt`, one name per line. The result and failure details are available under `target/logs/`.
+`tools/test.sh` checks the integrated build: `--fast` (the default) is lint, host tests, target builds, a boot and the system image's guest tests; `--full` adds every guest test on both architectures, the boot matrix, Miri, loom and the tools' own tests; `--deep` adds fuzzing, the benchmarks and the Kani proofs. A tier says what must hold. What runs is the part of it whose inputs changed since it last passed (section 2), at once where it can. `--plan` runs nothing and says what would run and why; `--fresh` holds nothing; `--guest NAME` runs one guest test, always; `--repo X` limits the scope. Additional guest tests are listed in `kernel/tests/inos-<architecture>.txt`, one name per line. The result and failure details are available under `target/logs/`.
+
+Miri runs every kernel-core test in a process of its own, many at a time (built once; the same tests and flags as `cargo miri test`): run one after another they took 55 minutes of every full run, nearly all of it in the slowest few. A Miri run that finds no test is a failure, as is a test Miri stops without a result.
 
 ## 1. What finished means
 
@@ -28,6 +30,71 @@ Ask these of every component before calling it finished. They are what "professi
 
 Tests verify correctness; they do not define the solution. Code that passes by special-casing the test's inputs is
 wrong, and a test that is itself wrong is fixed and the fix explained.
+
+## 2. What runs, and when
+
+Testing is paid for in the time it takes away from building, so each run has to buy something a previous run did
+not already show. Two days of this project's logs, before this section existed, held 26 full runs (16.8 hours, the
+same 35 to 85 minutes whether the change was one line of the shell or nothing at all), a two-hour deep run, and the
+benchmark against Linux run seven times in one evening, every run red for the same known reasons and every run
+booting Linux ten times to learn its numbers again. Most of that bought nothing: the answer was already known, and
+the tools could not say so.
+
+**A check is a function of its inputs, and is not run twice on the same ones.** Every check is a unit that names
+what it depends on: the checkouts it builds (as they are now, uncommitted changes included), or one crate and what
+it builds from, the harness functions that run it, the emulator and its firmware, the variables that change what it
+does (`tools/lib/evidence.sh`). A unit that passed on exactly these inputs is read back from the store
+(`target/evidence` of the main workshop, shared by every worktree: the key is content, not place) and one whose
+inputs changed runs. A failure is never stored. So:
+
+- A second run of an unchanged tree takes seconds at any tier, in any worktree, in any later session. What the
+  last session showed does not have to be shown again to be believed: the commit says what ran, and the store
+  holds it.
+- A change runs what it can affect. The shell's source is no input of the kernel's Miri run, its loom models, its
+  guest tests or the tools' own tests; kernel-core is an input of nearly everything. Nobody chooses a subset by
+  hand, and nothing is skipped by judgment.
+- `tools/test.sh --plan --full` says what a tier would run now, how long that took the last time and which input
+  changed, before anything is spent.
+- What does run, runs at once, where running at once cannot change the answer. A check that judges logic (does
+  the call return the documented error, does the driver recover, does the model agree) gives the same answer
+  beside thirty others: every guest boot assembles its own image from one build of the run's sources, the
+  repositories' host suites run side by side, Miri and the tools' own tests run beside the guests. A check that
+  judges a time does not. The first full run made at once failed the kernel's `sched` test on both architectures
+  ("a waking thread waited behind busy ones for more than 2 ms"): the kernel had not changed, the host had thirty
+  guests on it. So a check that judges a time says so (`quiet` on its line of the kernel's test manifest;
+  `QUIET_SYSTEM` in `tools/test.sh` for the two recovery deadlines) and those run first, one at a time, with the
+  host to themselves; then everything else at once. A full run with nothing held went from 35 minutes to
+  13 (428 checks), and Miri is all of it past the fifth minute: seven of its tests, each a replayed system-call
+  sequence, take ten minutes apiece under the interpreter, and making those cheaper is the next thing to do here.
+
+**When each tier is the right one.**
+
+| When | Run | Why that much |
+| --- | --- | --- |
+| Starting a session | `tools/test.sh --fast`, then `tools/test.sh --plan --full` | The first is held, or under a minute. The second runs nothing and says what the tree still owes: that is run before the next pin, not before the first line of code. |
+| While changing something | the one test that exercises it: `--guest NAME`, or `cargo test -p <crate> <name>` | The loop that finds the bug is seconds long. |
+| Before a commit | `tools/test.sh --fast` | Under a minute with nothing held (`tools/tests/fast_budget.sh` keeps it there). |
+| Before `tools/pin.sh` | `tools/test.sh --full` | Runs what the commits since the last pin can affect. |
+| After changing a parser, a decoder or another trust boundary | `tools/fuzz.sh --repo <repo>` | Ten minutes a target, for the repository that changed. |
+| After changing a measured path | `tools/bench.sh --only insns` first, then `tools/bench.sh` if a timing is in question (section 4.1) | Counts are exact and disturb nobody. A timed run boots only the group the change belongs to, never Linux. |
+| Choosing between designs | `tools/bench.sh --compare A,B,C` | Every candidate in one run. |
+| Declaring a milestone | `SILICA_MILESTONE=<n> tools/test.sh --deep --fresh` | Nothing held, Silica measured again, no open gap due. |
+
+**What the store cannot see, and what covers it.**
+
+- *A result that depends on timing.* A test with a race passes once and is then held. Running everything again and
+  hoping is not how such a test is found: it is run by name, many times (`--guest NAME` always runs), under load,
+  and the race is fixed where it is. A unit known to judge a time runs when the host does nothing else.
+- *An input nobody named.* Units name repositories whole unless a narrower input is certainly right (Miri: the
+  crate and what it builds from). `tools/tests/evidence.sh` shows each rule both ways: held on the same inputs, run
+  on a changed tracked file, untracked file, dependency, harness function, variable or emulator.
+- *The store itself.* A hosted run starts from a fresh clone and an empty store, and a milestone is declared from
+  `--fresh`: every check of the exit test ran on that tree, on that day.
+
+**Running it again is not a method.** A red result is information once. It is fixed, or its cause is named and
+recorded where the next run will show it (a failing test that says what is missing; for a measurement, an open
+gap: section 4.1), and work goes on. A result suspected of being noise is a defect of the instrument, and the
+instrument is what gets fixed: the gate's noise allowance, the host's stillness, the sample count.
 
 ## 3. Oracles by layer
 
@@ -62,8 +129,33 @@ An OS has no single reference implementation, so each layer gets its own.
 A gate is only worth having if it measures what it claims, on a fair comparison, with less noise than the change
 it is meant to catch. These rules apply to every gate below.
 
-- **Same host, same session.** Silica and the Linux baseline are measured on the same machine in the same run,
-  interleaved (A, B, A, B). A baseline recorded on another host or another day is not comparable.
+- **Linux is locked.** Linux is the yardstick, not what is being built, and its numbers on a given host do not
+  change. They are written down once, in `os/bench/reference.tsv` (per metric: Linux at its best, its best session
+  median, over the clean sessions of 2026-11-22 on the reference host: eight sessions of five boots for the kernel
+  paths, two for boot and the devices), and `tools/bench.sh` compares Silica with that file. No run boots Linux.
+  Silica's target on every metric with a Linux equivalent is **15% better than the locked number** (a ratio of at
+  most 0.85; a metric whose own limit is stricter, such as the IPC round trip at half, keeps it). The margin is
+  what makes the lock sound: across those sessions Linux's medians moved by 1 to 4% (its 99th percentiles by up to
+  16%), so a result at its target is ahead of Linux by more than Linux moves, and nothing has to be measured again
+  to say so. It also sets the direction: matching Linux is not the goal. Before this rule every session booted
+  Linux ten times (60% of its timed boots) to learn the same numbers again, and two sessions disagreed about
+  Linux by more than Silica had changed. `bench.sh --linux` still boots Linux beside Silica and prints what it
+  measures next to the locked numbers, for new hardware or a doubt about them; it judges nothing and writes
+  nothing. The file changes only by a commit that says why: a new metric (Linux is
+  measured for it once, with `--linux`, and its number locked in the commit that adds the metric), another host (a
+  line per metric for it), or a comparison shown to have been unfair to Linux.
+- **Silica is measured once per state of its sources**, in two groups with their own boots (the kernel paths; the
+  devices), each kept under what it is a function of (`tools/lib/evidence.sh`: the sources, the image, the
+  emulator, the host, the function that boots the machine). A change to a driver boots the system image and
+  nothing else, and a tree that did not change boots nothing: the results are printed from what was measured, and
+  the run says from when.
+- **A timing is taken on a host doing nothing else, and the run says how true that was.** `bench.sh` measures
+  what other programs did while its timed boots ran (the machine's busy time less its own) and prints it with the
+  results. Found the first time it was looked at: a stray process of the tools' own author spinning for an hour on
+  one of the eight measured cores. The single-processor paths read the same as ever; Linux's own eight-pair
+  throughput read 4.5% and then 11.8% under its locked number, which is how the session was known to be spoiled.
+  Timed boots take the machine over (turbo off, eight processors busy, a real-time echo on a ninth), so with
+  someone at its desktop they are not started unless `--now` says to; instruction counts disturb nobody and always run.
 - **A pinned, reproducible, well-tuned Linux.** The baseline's kernel version, config and init live in the `os`
   repository and the tool builds the image from them. The config is tuned for the same job as the Silica image
   (virtio only, nothing loaded that the workload does not use), so Silica is compared with Linux at its best.
@@ -72,20 +164,43 @@ it is meant to catch. These rules apply to every gate below.
 - **Deterministic gates for fixed paths.** IPC, syscall entry and exit, context switch and page-fault delivery are
   also gated by instruction count (QEMU `-icount`, or hardware counters). The count has no noise, so any increase
   fails until the commit that causes it explains it. The count of one benchmark is the difference between a boot
-  that runs it twice and a boot that runs it once, so boot work cancels out exactly.
+  that runs it twice and a boot that runs it once, so boot work cancels out exactly. A count is a property of the
+  kernel's source: it is taken when that changes, its eight emulated boots at once (they were seven of a run's
+  eleven minutes, one after another, on every run).
 - **Profiles are part of the instrument.** `tools/profile.sh` attributes a benchmark's kernel instructions (TCG
   with icount) or its processor cycles (KVM, the host's `perf` sampling the guest) to functions and source lines.
   A regression is explained with a profile of both commits, not by reasoning about the diff.
 - **Enough samples, and the spread reported.** A micro-benchmark runs at least 10,000 iterations in the guest and
   reports minimum, median and p99. A boot-level metric takes at least 10 boots. Results carry their dispersion.
-- **Ratchets.** Each metric keeps its best recorded result in the repository (`os/bench/ratchet.tsv`): the ratio to
-  Linux measured in the same session, which carries from one host to another, or the value itself where Linux has
-  no equivalent. A regression is a result worse than that best by more than the measured noise (three median
+- **Ratchets.** Each metric keeps its best recorded result in the repository (`os/bench/ratchet.tsv`): its best
+  value on the host that measured it and its best ratio to Linux's locked number, or the value alone where Linux
+  has no equivalent. A regression is a result worse than that best by more than the measured noise (three median
   absolute deviations, of both systems for a ratio, and for a timing at least 1%, which is how closely a timing
   repeats from one session to the next on the reference host), so slow creep cannot pass, and an improvement moves
   the ceiling down. A metric with no meaningful Linux equivalent is gated by its ratchet alone. A ratchet moves the
   other way only for a cost the system chose to pay, shown by benchmarking the kernel before and after the change in
   one session on one host, with both results written beside the new value in the spec section that owns the cost.
+- **At the target is what the runs cannot tell from the target.** A gate fails when the ratio is past its limit by
+  more than the noise of Silica's runs (three deviations). Judged to the last digit, a result at its limit passes
+  and fails by turns, and a gate that fails by turns is run again until it passes, which is the most expensive way
+  there is to learn nothing.
+- **A known gap is recorded, and then it can only shrink.** A gate that fails on every run for a reason already
+  known stops being read: the benchmark was red for days for the block path's depth-1 tail and for ratchets nobody
+  had settled, and a new regression would have been one more red line among nine. A shortfall that is known and not
+  yet closed is a line in `os/bench/open.tsv` (the metric, whether it is behind Linux or behind its own ratchet,
+  the bound it is recorded at, why), added by a commit that says why. While the metric is no worse than its bound
+  the run reports it as OPEN and passes, so the run's status says whether anything got worse; past the bound it is
+  an error again. Every run lists the open gaps. `--update-ratchet` tightens a bound that improved and removes a
+  gap that closed, and nothing in the tools adds or loosens one. A milestone is not declared over an open gap of
+  a metric it requires (`SILICA_MILESTONE=<n>` makes each an error). One focused attempt at a gap (a profile of
+  both systems, a design change measured with `--compare`) either closes it or ends in a line here and a
+  paragraph in the section that owns the path saying what was learned; the work then goes on, and the gap is
+  closed before the milestone is.
+- **Linux is the yardstick, not the product.** The baseline's kernel, config, benchmark program and virtual
+  machine change only when a comparison is shown to be unfair to Linux (it was, twice: MSI, and idle polling), in
+  a commit that shows it and locks the new numbers. They do not change to explain a gap: a gap is closed in
+  Silica, or recorded. What pushes Silica on is its own ratchet: every improvement becomes the floor, at 15% past
+  Linux as anywhere else, until a path has nothing left to give.
 - **The host is held still.** `tools/bench.sh` puts the measured processors on the `performance` governor, switches off
   idle states slower than 20 us on them and turbo on the machine, for both systems, and restores what it found. Left
   on its power-saving default the host measured itself: turbo gave a core 5.2 or 4.9 GHz depending on how many others
@@ -113,12 +228,30 @@ it is meant to catch. These rules apply to every gate below.
   benchmarks than the first (0.1 per fault between repeats: 2765.29, 2765.33, 2765.33 before the watch and 2766.37,
   2766.23, 2766.30 after, interleaved), and the page fault's tolerance is one instruction like the other counts',
   no longer two.
-- **Variants side by side.** `tools/bench.sh --compare <commit>` runs the kernel at that commit and the working tree,
-  and `--sweep NAME=v1,v2,...` runs the working tree built once per value of a build-time constant
-  (`kernel_core::tuned`, read from `SILICA_TUNE_<NAME>`; an ordinary build has plain constants), with their boots
-  interleaved on the held host. This is how a constant gets its value and how a change is shown to have paid: the
-  table goes beside the number it justified. It is an instrument; it gates and records nothing. First use: how long an
-  idle processor watches for work before it halts (`IDLE_WATCH_NS`, ARCHITECTURE.md, Time).
+- **Variants side by side, as many as there are candidates.** `tools/bench.sh --compare <kernel>[,<kernel>...]`
+  measures each named kernel (a commit, every commit of a range `a..b`, or another worktree's checkout: another
+  design) and the working tree in one run, and `--sweep NAME=v1,v2,...` the working tree built once per value of a
+  build-time constant (`kernel_core::tuned`, read from `SILICA_TUNE_<NAME>`; an ordinary build has plain
+  constants). This is how a constant gets its value, how one of several designs is chosen, how a change is shown
+  to have paid and how the commit that cost something is found: the table goes beside the number it justified. It
+  is an instrument; it gates nothing. What keeps seven variants as clean as two:
+  - *Counts first.* An instruction count is emulated and exact, so nothing one boot does reaches another: every
+    variant's counts are taken at the same time, on all the host's processors, and kept per kernel source, so a
+    commit is counted once in its life. Seven kernels cost what one does (`--only insns` asks nothing else and
+    holds no host). For a change to a fixed path this is the first question and usually the last: a path that
+    executes the same instructions was not changed by the change.
+  - *Timings one at a time, in rotation.* Two timed guests on one host share its caches and memory, so timings are
+    never taken together. The variants' boots are interleaved on the held host in an order that rotates every round
+    (A B C, then B C A, then C A B), so what the host does meanwhile, and whatever one boot leaves behind for the
+    next, falls on every variant alike.
+  - *An A/A control.* `--aa` measures the reference a second time as a variant of its own. What that column
+    reports as a change is what the instrument reports when nothing changed; a difference between real variants no
+    larger than it is not a difference.
+  - *Steps.* `--steps` shows each column's change from the one before it instead of from the first: over a range of
+    commits, the one that cost something is the column that says so.
+  First use: how long an idle processor watches for work before it halts (`IDLE_WATCH_NS`, ARCHITECTURE.md, Time).
+  Owed its second: the two instruction-count gaps in `os/bench/open.tsv`, which
+  `bench.sh --compare 6f6c470..HEAD --only insns --steps` assigns to their commits.
 - **Confinement is compared with confinement.** The benchmark machine has an IOMMU (Intel VT-d) and Silica always confines device DMA with one; QEMU emulates every translation in software, which no hardware does. So each comparison runs on the machine that makes it fair, and the harshest one for Silica wins a tie: kernel paths and boot compare Silica as it runs (confined) with Linux at its fastest, on the machine without an IOMMU; the block path compares both on the machine without an IOMMU (`blk_*`), and both confining DMA on the machine with one (`blk_*_confined`, Linux with `intel_iommu=on` in its fastest, lazy mode, where a freed buffer stays reachable for a while). Found the first time the block path was measured, against a baseline that turned out to lack MSI (below): Silica confined against Linux unconfined lost 15% at depth 32, all of it the emulator translating Silica's DMA. With the baseline corrected, in one held session (`bench.sh`, 5 runs): unconfined, Linux reads 4 KiB at depth 1 in 15.4 us against Silica's 16.5 (p99 18.0 against 23.2) and they tie at depth 32 (294,000 a second); confined, Silica leads, 17.6 against 19.9 us (p99 24.8 against 46.4) and 251,000 against 142,000 a second, because Linux maps and unmaps each request in the IOMMU and Silica maps a client's memory once, when it is registered. The unconfined depth-1 gap is Silica's extra hop (the device's interrupt reaches the driver's thread, which then wakes the client's; Linux completes in interrupt context and wakes the reader directly) and is open.
 - **The baseline's configuration is checked.** `build_linux` fails when kconfig drops an option the baseline asks for: tinyconfig leaves out `CONFIG_PCI_MSI`, merge_config dropped it silently, and for its first block measurements the baseline's disk interrupted through a legacy wire and its IOMMU option was gone with it.
 - **Linux is given the same technique.** When Silica gains one that Linux has as an option, the baseline turns it on:
@@ -126,8 +259,9 @@ it is meant to catch. These rules apply to every gate below.
   cross-processor round trips from 165,000 to 400,000 a second on one pair.
 - **One machine so far.** Every timing recorded here is from one Intel desktop processor (i9-12900K, performance
   cores) under KVM. aarch64 has run only under emulation, where timings mean nothing, and nothing has run on bare
-  metal or on AMD. "Faster than Linux" is shown for that machine and no other until the same session is run on a
-  second x86 vendor, on real aarch64 and without a hypervisor; a constant chosen by a sweep (the idle watch) is
+  metal or on AMD. "Faster than Linux" is shown for that machine and no other until Linux's numbers are measured and
+  locked (`bench.sh --linux`, a line per metric and host in `os/bench/reference.tsv`) on a second x86 vendor, on
+  real aarch64 and without a hypervisor; a constant chosen by a sweep (the idle watch) is
   re-swept there or replaced by a boot-time measurement.
 - **A factor is not a throughput.** `ipc_cross_scaling` (four pairs over one) went from 4.5 to 3.8 when the idle
   watch made one pair 4.8 times faster and four pairs 4.1 times: both throughputs rose, and a factor above 4 had only
@@ -147,7 +281,9 @@ it is meant to catch. These rules apply to every gate below.
   see.
 - **Efficiency where emulation hides throughput.** Under QEMU the host bounds I/O throughput for both systems, so
   I/O gates measure guest CPU time per operation at a fixed rate; raw throughput is recorded.
-- **A gate must be able to fail.** Each gate has a test that plants a regression and sees the gate fail. A metric
+- **A gate must be able to fail.** Each gate has a test that plants a regression and sees the gate fail. The same
+  holds for what is not run again: `tools/tests/evidence.sh` changes each kind of input and sees the check run, and
+  `tools/tests/bench.sh` sees a kept result that misses its gate fail as a measured one does. A metric
   that is missing at its milestone fails. A check on something that does not exist yet reports SKIP, never pass. A
   result that exists and misses its gate (slower than Linux, over its budget, worse than its ratchet) fails at every
   milestone: the milestone column says when a metric must exist, never when it may lose.
@@ -178,7 +314,9 @@ Whole operations, which carry the cost a microkernel adds between servers:
 
 No gate permits Silica to be slower than Linux, at any milestone. A path that cannot match Linux when it is first
 built shows that the architecture under it is wrong, and that is cheapest to fix before anything is built on it; a
-gate that let it through would defer the discovery to a rewrite. Every gate is also a ratchet.
+gate that let it through would defer the discovery to a rewrite. Every gate is also a ratchet. A gap that is not
+closed at once is not waved through either: it is recorded with its bound (section 4.1, "A known gap is
+recorded"), fails again the moment it grows, and blocks the milestone.
 
 | Metric | Gate | From |
 | --- | --- | --- |
