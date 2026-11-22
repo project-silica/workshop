@@ -102,7 +102,7 @@ Measure the image you boot, on the same workload before and after. The budgets i
 
 This project was once run by a process larger than its code: an architect role, decision records, feature lists, state journals, dispatch tooling, evaluators and review gates. It was removed because it produced process instead of an operating system.
 
-The record of this project is the code, the tests, the spec and the commit history. Do not add tracking files, progress logs, numbered decision records, approval checklists, agent roles, or tools that manage the work instead of building, booting, testing and measuring Silica. Before adding any document or tool, ask whether Silica would build, boot, pass its tests or be understood any worse without it.
+The record of this project is the code, the spec and the commit history. Do not add tracking files, progress logs, numbered decision records, approval checklists, agent roles, or tools that manage the work instead of building, booting, testing and measuring Silica. Before adding any document or tool, ask whether Silica would build, boot, pass its tests or be understood any worse without it.
 
 Spend effort where the system is. The tools are currently far larger than the kernel, and `TESTING.md` section 4 describes gates the tools do not yet implement. Bring a gate's tooling up to the spec in the slice that first produces something for it to measure. The same holds for time: an hour of tests or benchmarks that shows nothing new is an hour of process.
 
@@ -110,9 +110,11 @@ Spend effort where the system is. The tools are currently far larger than the ke
 
 <working_method>
 
-Each session starts without memory of the last, but the tools remember what has been shown. Git history and the spec are the state, so begin with the recent commits of the repositories you will touch and the next missing behaviour in `MILESTONES.md`, and start building it. The tree is as the last commit left it, and what that commit says it ran, it ran. Most of a session is writing Silica's code. Every test and benchmark run checks work: a change you made, a commit or pin you are about to make, or a choice between designs, and you can say which before it starts. Seeing where things stand is never the reason; the commits already say. Commit working states, and say in each commit what ran and what a user or developer can now do.
+Each session starts without memory of the last. The state is written down in three places, and they are complete: the recent commit messages of each repository (what was built, what ran on it, what it showed), the list in `spec/MILESTONES.md` of what the current milestone still lacks, and `os/bench/open.tsv` (each measured gap and the change it waits for). Every test, plan and benchmark either passed at the last commit or has its failure written in one of those places, so no command can tell you more about the tree than reading them does. Take the first item on the list, read the code it touches, and write. Your first command that is not a read builds or tests something you have just edited. A run always checks work you can name before it starts: a change you made, a commit or pin you are about to make, or a choice between designs.
 
-Work in vertical slices. Take the user's requested outcome or the next missing behaviour in `MILESTONES.md` and follow one useful operation through the whole system. The first failure along that path is what to build next.
+Commit working states. A commit message says what was built and what a user or developer can now do, and ends with one line saying what ran (`Ran: ...`). A commit that builds an item on the milestone's list in `MILESTONES.md`, or finds a new one, changes the list in the same commit, so the next session reads the next thing to build.
+
+Work in vertical slices. Take the user's requested outcome or the first item the milestone's list says the code lacks, and follow one useful operation through the whole system by reading the code along it. The first place the code cannot do what the operation needs is what to build next.
 
 Build your own eyes early. You can observe Silica only through the serial console, QEMU and the test logs, so symbolized panics, structured logs and a way to inspect capabilities repay their cost on every later bug.
 
@@ -126,7 +128,7 @@ Edit files with the harness's own Edit and Write tools, so every change is track
 
 Test time is spent where the change is. `spec/TESTING.md` section 2 is the strategy; this is the short form.
 
-A tier (`--fast`, `--full`, `--deep`) says what must hold. The tools run only the checks whose inputs changed since they last passed, and hold the rest, in every worktree and every later session. So you never choose a subset by hand and never pay for what is already known, and you never run anything "to be sure": if nothing it depends on changed, it is not run, and running it would tell you nothing.
+A tier (`--fast`, `--full`, `--deep`) says what must hold after a change. The tools run only the checks that change can reach and hold the rest, so you never choose a subset by hand. On a tree nobody has changed in this session, a tier, a plan or a benchmark has nothing to tell you: what it would print is already in the last commit.
 
 - While changing something, run the one test that exercises it (`--guest NAME`, `cargo test -p <crate> <name>`). Before a commit, `--fast`. Before `./tools/pin.sh`, `--full`. `--deep --fresh` declares a milestone and has no other use.
 - `--fresh` is for a milestone's exit and for a concrete doubt about the store. It is not a habit.
@@ -168,9 +170,9 @@ When you stop, write for a reader who has not seen your work: what ran, what you
 
 <workspace>
 
-From the workshop root: `./bootstrap.sh` obtains the pinned repositories, `./tools/init.sh` checks the toolchain, `./tools/boot.sh` boots x86_64 in QEMU, and `./tools/test.sh --fast` checks the integrated build in under a minute. `--full` adds the complete guest tests, Miri, loom and the tool self-tests, `--deep` adds fuzzing, the benchmarks and the proofs, `--guest NAME` runs one guest test, `--plan` says what a tier would run, and `--fresh` holds nothing. Results land under `target/logs/`; what has passed, and on which inputs, is under `target/evidence/` of the main workshop, shared by its worktrees.
+From the workshop root: `./bootstrap.sh` obtains the pinned repositories, `./tools/init.sh` checks the toolchain, and `./tools/boot.sh` boots x86_64 in QEMU (`--system` boots the system image). Which test or benchmark checks which kind of change is in the section above and `spec/TESTING.md` section 2. A run's results land under `target/logs/`.
 
-`spec/` is part of this repository. `idl`, `kernel` and `os` are separate Git repositories checked out inside it, and `tools` links to `os/tools`. Commit in the repository that owns the change. When the integrated build passes with new component commits, run `./tools/pin.sh`, which records them in `os/manifest.toml` and `bootstrap.pins`, then commit `bootstrap.pins` here. Push component repositories before the workshop.
+`spec/` is part of this repository. `idl`, `kernel`, `system` and `os` are separate Git repositories checked out inside it, and `tools` links to `os/tools`. Commit in the repository that owns the change. When the integrated build passes with new component commits, run `./tools/pin.sh`, which records them in `os/manifest.toml` and `bootstrap.pins`, then commit `bootstrap.pins` here. Push component repositories before the workshop.
 
 A `MILESTONE` file in the workshop root holds the current milestone number (absent means 0). The tools use it to decide which budgets and architectures are required; raise it when a milestone's exit test passes.
 
