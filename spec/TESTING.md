@@ -116,6 +116,8 @@ it is meant to catch. These rules apply to every gate below.
   interleaved on the held host. This is how a constant gets its value and how a change is shown to have paid: the
   table goes beside the number it justified. It is an instrument; it gates and records nothing. First use: how long an
   idle processor watches for work before it halts (`IDLE_WATCH_NS`, ARCHITECTURE.md, Time).
+- **Confinement is compared with confinement.** The benchmark machine has an IOMMU (Intel VT-d) and Silica always confines device DMA with one; QEMU emulates every translation in software, which no hardware does. So each comparison runs on the machine that makes it fair, and the harshest one for Silica wins a tie: kernel paths and boot compare Silica as it runs (confined) with Linux at its fastest, on the machine without an IOMMU; the block path compares both on the machine without an IOMMU (`blk_*`), and both confining DMA on the machine with one (`blk_*_confined`, Linux with `intel_iommu=on` in its fastest, lazy mode, where a freed buffer stays reachable for a while). Found the first time the block path was measured, against a baseline that turned out to lack MSI (below): Silica confined against Linux unconfined lost 15% at depth 32, all of it the emulator translating Silica's DMA. With the baseline corrected, in one held session (`bench.sh`, 5 runs): unconfined, Linux reads 4 KiB at depth 1 in 15.4 us against Silica's 16.5 (p99 18.0 against 23.2) and they tie at depth 32 (294,000 a second); confined, Silica leads, 17.6 against 19.9 us (p99 24.8 against 46.4) and 251,000 against 142,000 a second, because Linux maps and unmaps each request in the IOMMU and Silica maps a client's memory once, when it is registered. The unconfined depth-1 gap is Silica's extra hop (the device's interrupt reaches the driver's thread, which then wakes the client's; Linux completes in interrupt context and wakes the reader directly) and is open.
+- **The baseline's configuration is checked.** `build_linux` fails when kconfig drops an option the baseline asks for: tinyconfig leaves out `CONFIG_PCI_MSI`, merge_config dropped it silently, and for its first block measurements the baseline's disk interrupted through a legacy wire and its IOMMU option was gone with it.
 - **Linux is given the same technique.** When Silica gains one that Linux has as an option, the baseline turns it on:
   the baseline now idles with `cpuidle-haltpoll` (forced on, Linux's own adaptive poll time), which took its
   cross-processor round trips from 165,000 to 400,000 a second on one pair.
@@ -181,6 +183,7 @@ gate that let it through would defer the discovery to a rewrite. Every gate is a
 | 4 KiB write plus sync, p99 | at or below Linux | M5 |
 | Small-file metadata throughput | at or above Linux | M5 |
 | Block I/O: guest CPU per operation at a fixed rate, virtio-blk from M3, NVMe from the milestone its driver lands | at or below Linux, each against the same device | M3 |
+| Block I/O: 4 KiB direct reads at depth 1 (median and p99) and depth 32 (throughput), unconfined and confined (`blk_read4k_*`) | at or better than Linux (`O_DIRECT` pread, io_uring at depth 32) | M3 |
 | HTTP request p99 latency at a fixed rate, 64 connections | at or below Linux | M4 |
 | TCP: guest CPU per gigabyte at a fixed rate | at or below Linux | M4 |
 
