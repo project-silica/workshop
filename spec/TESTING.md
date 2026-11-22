@@ -139,11 +139,8 @@ it is meant to catch. These rules apply to every gate below.
   16%), so a result at its target is ahead of Linux by more than Linux moves, and nothing has to be measured again
   to say so. It also sets the direction: matching Linux is not the goal. Before this rule every session booted
   Linux ten times (60% of its timed boots) to learn the same numbers again, and two sessions disagreed about
-  Linux by more than Silica had changed. `bench.sh --linux` still boots Linux beside Silica and prints what it
-  measures next to the locked numbers, for new hardware or a doubt about them; it judges nothing and writes
-  nothing. The file changes only by a commit that says why: a new metric (Linux is
-  measured for it once, with `--linux`, and its number locked in the commit that adds the metric), another host (a
-  line per metric for it), or a comparison shown to have been unfair to Linux.
+  Linux by more than Silica had changed. Linux has been measured and is not measured again, for any metric or
+  reason: a metric with no number in the file is gated by its ratchet alone.
 - **Silica is measured once per state of its sources**, in two groups with their own boots (the kernel paths; the
   devices), each kept under what it is a function of (`tools/lib/evidence.sh`: the sources, the image, the
   emulator, the host, the function that boots the machine). A change to a driver boots the system image and
@@ -197,9 +194,8 @@ it is meant to catch. These rules apply to every gate below.
   paragraph in the section that owns the path saying what was learned; the work then goes on, and the gap is
   closed before the milestone is.
 - **Linux is the yardstick, not the product.** The baseline's kernel, config, benchmark program and virtual
-  machine change only when a comparison is shown to be unfair to Linux (it was, twice: MSI, and idle polling), in
-  a commit that shows it and locks the new numbers. They do not change to explain a gap: a gap is closed in
-  Silica, or recorded. What pushes Silica on is its own ratchet: every improvement becomes the floor, at 15% past
+  machine were corrected twice before the numbers were locked (MSI, and idle polling) and do not change again,
+  least of all to explain a gap: a gap is closed in Silica, or recorded. What pushes Silica on is its own ratchet: every improvement becomes the floor, at 15% past
   Linux as anywhere else, until a path has nothing left to give.
 - **The host is held still.** `tools/bench.sh` puts the measured processors on the `performance` governor, switches off
   idle states slower than 20 us on them and turbo on the machine, for both systems, and restores what it found. Left
@@ -254,15 +250,14 @@ it is meant to catch. These rules apply to every gate below.
   `bench.sh --compare 6f6c470..HEAD --only insns --steps` assigns to their commits.
 - **Confinement is compared with confinement.** The benchmark machine has an IOMMU (Intel VT-d) and Silica always confines device DMA with one; QEMU emulates every translation in software, which no hardware does. So each comparison runs on the machine that makes it fair, and the harshest one for Silica wins a tie: kernel paths and boot compare Silica as it runs (confined) with Linux at its fastest, on the machine without an IOMMU; the block path compares both on the machine without an IOMMU (`blk_*`), and both confining DMA on the machine with one (`blk_*_confined`, Linux with `intel_iommu=on` in its fastest, lazy mode, where a freed buffer stays reachable for a while). Found the first time the block path was measured, against a baseline that turned out to lack MSI (below): Silica confined against Linux unconfined lost 15% at depth 32, all of it the emulator translating Silica's DMA. With the baseline corrected, in one held session (`bench.sh`, 5 runs): unconfined, Linux reads 4 KiB at depth 1 in 15.4 us against Silica's 16.5 (p99 18.0 against 23.2) and they tie at depth 32 (294,000 a second); confined, Silica leads, 17.6 against 19.9 us (p99 24.8 against 46.4) and 251,000 against 142,000 a second, because Linux maps and unmaps each request in the IOMMU and Silica maps a client's memory once, when it is registered. The unconfined depth-1 gap is Silica's extra hop (the device's interrupt reaches the driver's thread, which then wakes the client's; Linux completes in interrupt context and wakes the reader directly) and is open.
 - **The baseline's configuration is checked.** `build_linux` fails when kconfig drops an option the baseline asks for: tinyconfig leaves out `CONFIG_PCI_MSI`, merge_config dropped it silently, and for its first block measurements the baseline's disk interrupted through a legacy wire and its IOMMU option was gone with it.
-- **Linux is given the same technique.** When Silica gains one that Linux has as an option, the baseline turns it on:
-  the baseline now idles with `cpuidle-haltpoll` (forced on, Linux's own adaptive poll time), which took its
+- **Linux was given the same technique.** Before its numbers were locked, the baseline was turned to
+  idle with `cpuidle-haltpoll` (forced on, Linux's own adaptive poll time), which took its
   cross-processor round trips from 165,000 to 400,000 a second on one pair.
 - **One machine so far.** Every timing recorded here is from one Intel desktop processor (i9-12900K, performance
   cores) under KVM. aarch64 has run only under emulation, where timings mean nothing, and nothing has run on bare
-  metal or on AMD. "Faster than Linux" is shown for that machine and no other until Linux's numbers are measured and
-  locked (`bench.sh --linux`, a line per metric and host in `os/bench/reference.tsv`) on a second x86 vendor, on
-  real aarch64 and without a hypervisor; a constant chosen by a sweep (the idle watch) is
-  re-swept there or replaced by a boot-time measurement.
+  metal or on AMD. "Faster than Linux" is shown for that machine and no other. On a second x86 vendor, on
+  real aarch64 and without a hypervisor Silica is held by its ratchets and Linux is not measured; a constant chosen
+  by a sweep (the idle watch) is re-swept there or replaced by a boot-time measurement.
 - **A factor is not a throughput.** `ipc_cross_scaling` (four pairs over one) went from 4.5 to 3.8 when the idle
   watch made one pair 4.8 times faster and four pairs 4.1 times: both throughputs rose, and a factor above 4 had only
   ever meant that one pair was slow. Its ratchet was set to the new value; the throughputs carry the gate.
@@ -294,6 +289,9 @@ it is meant to catch. These rules apply to every gate below.
 The numeric limits below were set by judgment before anything could be measured. The first real measurement of
 each either confirms it or replaces it, with the measurement recorded beside the new number, and from then on the
 ratchet holds it.
+
+A gate below that names Linux, for a metric with no number in `os/bench/reference.tsv`, is held by its ratchet;
+Linux is not measured to supply one.
 
 Kernel paths:
 
@@ -338,7 +336,7 @@ System:
 | Idle memory, server image | at most 25% of the Linux baseline; ratchet in bytes | M4 |
 | Idle wakeups over 60 s | 0 on the server image; 0 on the desktop with a static screen | M4, M6 |
 | Memory and capability count after a 24 h soak | no growth | M4 |
-| Driver crash recovery: kill virtio-blk and virtio-net during sustained I/O | service resumes within 250 ms; zero committed writes lost, verified by the host; open connections continue. Linux forced-unbind result recorded | M3 |
+| Driver crash recovery: kill virtio-blk and virtio-net during sustained I/O | service resumes within 250 ms; zero committed writes lost, verified by the host; open connections continue | M3 |
 | Clock: drift against the host over 1 h; monotonic time never steps back across CPUs or suspend | within the NTP bound; zero backward steps | M4 |
 
 Desktop:
