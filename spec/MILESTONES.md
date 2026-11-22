@@ -31,13 +31,15 @@ M3, read against its exit test and the requirements above on 2026-11-22. Built a
 booting from declarations; virtio-blk, virtio-net and NVMe in userspace, confined, each with a hostile driver in its
 place and the unconfined image; drivers killed under load (`recovery`, `net_recovery`, `recovery_nvme`); device fault
 injection; the keyboard and display drivers restarted under the shell; disk hot-add and removal; shutdown and reset;
-`trace`, `log` and `caps` in the shell. Still to build, in order:
+`trace`, `log` and `caps` in the shell; fuzzers for M3's trust boundaries, each 10 minutes clean (`virtqueue`: the
+used ring of virtio-blk, -net and -input; `nvme_controller`: completion entries, Identify data and CAP;
+`pci_config`: configuration space as the device manager and a driver read it; `ring`: `silica-queue`'s and the log's
+rings with a hostile peer; `gpt`). Still to build, in order:
 
-1. Fuzzers for M3's trust boundaries. The fuzz targets today are `acpi`, `elf`, `syscalls` (kernel) and `messages`
-   (IDL). Missing: what a device writes into a virtqueue (used ring, lengths, IDs; virtio-blk, virtio-net,
-   virtio-input), NVMe completion entries, the GPT parser in the partitions service, PCI configuration space and its
-   capability lists as the device manager reads them, `silica-queue`'s ring header words as a peer writes them, and
-   a service's log ring as logd reads it. Each runs 10 minutes clean.
+1. `fault_virtio_blk_stuck` fails about one run in four on a loaded host: every check passes and `BOOT OK` is
+   printed, then the kernel's power-off (QEMU's debug-exit port, then ACPI S5) returns without the machine stopping,
+   and QEMU runs to its timeout with its main loop idle and both processors halted (`qemu.sh` now keeps the
+   emulator's thread states beside the serial log on a timeout). No other test has shown it. Find the race and fix it.
 2. Interrupt remapping (C32). `kernel/arch/x86_64/iommu.rs` leaves interrupt remapping as the firmware set it, so a
    confined device's message interrupts are not checked against the device allowed to send them; the hostile
    driver has not yet tried to forge another device's interrupt, and should, and fail.

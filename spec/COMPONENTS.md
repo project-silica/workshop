@@ -123,6 +123,7 @@ component when a working slice calls for it.
 ## F. Storage (M3 to M5)
 
 - F01 Block server, request rings, partition (GPT) service, I/O scheduler
+  - Owed (M5): the partitions service reads only the primary GPT; a disk whose primary header or entries fail their checksum is offered whole, where the backup at the disk's end would still describe it
 - F02 VFS/namespace server: directory capabilities, path resolution, watches
 - F03 Native CoW filesystem: format, allocator, B-trees, checksums, snapshots, send/receive, scrub, fsck, crash consistency
 - F04 Package blob store (Merkle-verified, read-only)

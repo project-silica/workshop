@@ -17,5 +17,6 @@ Document each unsafe invariant at the call site.
 | system | `proc/src/` | Filling a child's memory through the parent's scratch mapping; the root task's view of the ramdisk |
 | system | `init/src/`, `systest/src/`, `stress/src/`, `devmgr/src/` | Program entry symbols; destroying objects the program made and no longer uses; `devmgr`: firmware tables and configuration space mapped from device memory |
 | system | `drivers/framework/src/` | Mapping a device's registers and DMA memory as `Mmio`; everything else in a driver goes through those accessors |
+| system | `rt/fuzz/fuzz_targets/`, `drivers/framework/fuzz/fuzz_targets/`, `drivers/nvme/fuzz/fuzz_targets/`, `devmgr/fuzz/fuzz_targets/` | The fuzz targets: host memory of the target's own presented as `Mmio`, standing in for the registers and shared memory a hostile device or peer writes |
 
 A program's own shared memory and lent memory are reached through `silica_rt::mem::Memory::shared` and `silica_rt::mem::peer`, which need no `unsafe` in the program. `tools/test.sh` checks this table: an `unsafe` block or impl in any file outside these paths fails the `unsafe` check.
