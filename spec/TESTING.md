@@ -72,11 +72,12 @@ inputs changed runs. A failure is never stored. So:
   13 (428 checks), and Miri is all of it past the fifth minute: seven of its tests, each a replayed system-call
   sequence, take ten minutes apiece under the interpreter, and making those cheaper is the next thing to do here.
 
-**When each tier is the right one.**
+**When each tier is the right one.** A run checks work: a change just made, a commit or a pin about to be made, a
+choice between designs. Each row below names the work it checks. Where the tree stands is not a reason to run
+anything: the commits say what ran, and the store holds it. A session's first test checks its first change.
 
 | When | Run | Why that much |
 | --- | --- | --- |
-| Starting a session | `tools/test.sh --fast`, then `tools/test.sh --plan --full` | The first is held, or under a minute. The second runs nothing and says what the tree still owes: that is run before the next pin, not before the first line of code. |
 | While changing something | the one test that exercises it: `--guest NAME`, or `cargo test -p <crate> <name>` | The loop that finds the bug is seconds long. |
 | Before a commit | `tools/test.sh --fast` | Under a minute with nothing held (`tools/tests/fast_budget.sh` keeps it there). |
 | Before `tools/pin.sh` | `tools/test.sh --full` | Runs what the commits since the last pin can affect. |
@@ -145,7 +146,9 @@ it is meant to catch. These rules apply to every gate below.
   to say so. It also sets the direction: matching Linux is not the goal. Before this rule every session booted
   Linux ten times (60% of its timed boots) to learn the same numbers again, and two sessions disagreed about
   Linux by more than Silica had changed. These numbers are final: every run compares with them as they
-  stand, and a metric with no number in the file is gated by its ratchet alone.
+  stand. Linux is booted for one reason only: a metric with a Linux equivalent that has no number in the file yet
+  (`bench.sh --linux`), once, after which that number is locked like the rest. A metric with no
+  Linux equivalent is gated by its ratchet alone.
 - **Silica is measured once per state of its sources**, in two groups with their own boots (the kernel paths; the
   devices), each kept under what it is a function of (`tools/lib/evidence.sh`: the sources, the image, the
   emulator, the host, the function that boots the machine). A change to a driver boots the system image and
