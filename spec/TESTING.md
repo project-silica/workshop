@@ -38,7 +38,7 @@ An OS has no single reference implementation, so each layer gets its own.
 | Kernel objects, caps, IPC | Executable reference model in plain Rust (simple, obviously-correct, slow). Proptest drives random operation sequences against model and real implementation and compares state. Kani proves no-forge and revoke-completeness on bounded configurations. |
 | Scheduler | Deterministic simulation on host: synthetic workloads, assert fairness bounds, deadline admission, no starvation, budget donation across IPC. |
 | Memory management | Model-based tests plus Miri; in-OS stress with poisoned freed pages. |
-| Concurrency | loom on every lock-free structure and on the IPC fast path. |
+| Concurrency | loom on every lock-free structure and on the IPC fast path. A model has every place the code can take an event and drop it (an interrupt window in a loop), not only the place it waits for one: the idle watch's first model lacked its window and passed a protocol that lost wake-ups. A new model is run once against the mistake it exists to catch. |
 | Syscall boundary | Coverage-guided fuzzer with a syscall grammar; invariant: kernel never panics, never leaks a capability, retyped Untyped memory always balances. |
 | IDL protocols | Generated round-trip and version-skew tests; fuzz every server's decoder. |
 | Filesystem | Differential test against an in-memory model; crash-consistency by cutting writes at every block boundary and remounting; image fuzzer; fsck must agree with the model. |
@@ -101,7 +101,14 @@ it is meant to catch. These rules apply to every gate below.
   writes them): 569 ns against 804, ratio 0.71. Two hypotheses were measured and discarded on the way: saving and
   restoring the faulting thread's vector state (skipping it changed nothing), and exits to the hypervisor (none per
   fault). The instruction count went from 2761 to 2765: each of the fault's two hand-offs now tests whether another
-  processor woke a thread meanwhile, without which that wake could be dropped.
+  processor woke a thread meanwhile, without which that wake could be dropped. It is 2766.3 with the idle watch: the
+  shoot-down's kick now tries a poke before an interrupt, one instruction more on the path that does neither
+  (measured per function, `shoot_down` 104.00 to 105.00; the time is unchanged at 569 ns). That one instruction was
+  first reported as three: the count is the difference of two boots, a boot varies by up to 4,000 instructions with
+  the other processor's timing, and one benchmark is only 2,048 faults. The second boot now runs four more
+  benchmarks than the first (0.1 per fault between repeats: 2765.29, 2765.33, 2765.33 before the watch and 2766.37,
+  2766.23, 2766.30 after, interleaved), and the page fault's tolerance is one instruction like the other counts',
+  no longer two.
 - **Variants side by side.** `tools/bench.sh --compare <commit>` runs the kernel at that commit and the working tree,
   and `--sweep NAME=v1,v2,...` runs the working tree built once per value of a build-time constant
   (`kernel_core::tuned`, read from `SILICA_TUNE_<NAME>`; an ordinary build has plain constants), with their boots
@@ -111,6 +118,11 @@ it is meant to catch. These rules apply to every gate below.
 - **Linux is given the same technique.** When Silica gains one that Linux has as an option, the baseline turns it on:
   the baseline now idles with `cpuidle-haltpoll` (forced on, Linux's own adaptive poll time), which took its
   cross-processor round trips from 165,000 to 400,000 a second on one pair.
+- **One machine so far.** Every timing recorded here is from one Intel desktop processor (i9-12900K, performance
+  cores) under KVM. aarch64 has run only under emulation, where timings mean nothing, and nothing has run on bare
+  metal or on AMD. "Faster than Linux" is shown for that machine and no other until the same session is run on a
+  second x86 vendor, on real aarch64 and without a hypervisor; a constant chosen by a sweep (the idle watch) is
+  re-swept there or replaced by a boot-time measurement.
 - **A factor is not a throughput.** `ipc_cross_scaling` (four pairs over one) went from 4.5 to 3.8 when the idle
   watch made one pair 4.8 times faster and four pairs 4.1 times: both throughputs rose, and a factor above 4 had only
   ever meant that one pair was slow. Its ratchet was set to the new value; the throughputs carry the gate.
