@@ -1,6 +1,6 @@
 # Testing Silica
 
-Run `tools/test.sh --fast` for host tests, target builds and a QEMU boot. Run `--full` for host and guest coverage, Miri, loom and tool regressions, or `--deep` to include fuzzing. Run a single guest case with `--guest NAME`. Additional guest tests are listed in `kernel/tests/inos-<architecture>.txt`, one name per line. The result and failure details are available under `target/logs/`.
+Run `tools/test.sh --fast` for host tests, target builds and a QEMU boot. Run `--full` for host and guest coverage, Miri, loom and tool regressions, or `--deep` to include fuzzing. Miri runs every kernel-core test in a process of its own, many at a time (built once; the same tests and flags as `cargo miri test`): run one after another they took 55 minutes of every full run, nearly all of it in the slowest few. A Miri run that finds no test is a failure, as is a test Miri stops without a result. Run a single guest case with `--guest NAME`. Additional guest tests are listed in `kernel/tests/inos-<architecture>.txt`, one name per line. The result and failure details are available under `target/logs/`.
 
 ## 1. What finished means
 
