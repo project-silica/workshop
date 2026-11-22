@@ -52,14 +52,14 @@ does (`tools/lib/evidence.sh`). A unit that passed on exactly these inputs is re
 (`target/evidence` of the main workshop, shared by every worktree: the key is content, not place) and one whose
 inputs changed runs. A failure is never stored. So:
 
-- A second run of an unchanged tree takes seconds at any tier, in any worktree, in any later session. What the
-  last session showed does not have to be shown again to be believed: the commit says what ran, and the store
-  holds it.
+- What the last session showed does not have to be shown again to be believed: the commit says what ran, and the
+  store holds it so that a run after a change repeats nothing the change cannot reach. A run on a tree nobody has
+  changed has nothing to say.
 - A change runs what it can affect. The shell's source is no input of the kernel's Miri run, its loom models, its
   guest tests or the tools' own tests; kernel-core is an input of nearly everything. Nobody chooses a subset by
   hand, and nothing is skipped by judgment.
-- `tools/test.sh --plan --full` says what a tier would run now, how long that took the last time and which input
-  changed, before anything is spent.
+- After a change, `--plan` with a tier names the checks that change reaches and how long they took the last time,
+  so a change that reaches more than expected is seen before the time is spent.
 - What does run, runs at once, where running at once cannot change the answer. A check that judges logic (does
   the call return the documented error, does the driver recover, does the model agree) gives the same answer
   beside thirty others: every guest boot assembles its own image from one build of the run's sources, the

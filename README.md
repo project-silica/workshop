@@ -12,6 +12,6 @@ cd workshop
 ./tools/boot.sh --system
 ```
 
-`./tools/test.sh --fast` checks the integrated build in under a minute; `--full` adds the complete guest tests, Miri, loom and the tool self-tests; `--deep` adds fuzzing and the benchmarks against a Linux baseline built from pinned source (`./tools/bench.sh`). Each tier runs only the checks whose inputs changed since they last passed (`--plan` says which, `--fresh` runs them all): see [`spec/TESTING.md`](spec/TESTING.md) section 2.
+What is built and what has been shown of it is in the commit history; what the current milestone still lacks is listed in [`spec/MILESTONES.md`](spec/MILESTONES.md). How a change is checked, and which test or benchmark answers which question about it, is in [`spec/TESTING.md`](spec/TESTING.md) section 2.
 
 `spec/` is part of this repository. `idl` (the protocol language and its compiler), `kernel`, `system` (the runtime and the first programs) and `os` (image builder and tools) are separate Git checkouts pinned in `bootstrap.pins`. `tools` links to `os/tools`.

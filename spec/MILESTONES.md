@@ -1,8 +1,10 @@
 # Milestones
 
-Use the exit tests to identify the next missing OS behavior. Demonstrate each
-milestone on the integrated code with the tests and measurements that exercise
-it. Engineering can proceed as soon as the technical prerequisites exist.
+The exit test says what a milestone must do. The list under "What the current
+milestone lacks" says what the code does not do yet, found by reading the code
+against the exit test; its first item is what to build next. A commit that
+builds an item, or finds one missing, changes the list with it. Engineering can
+proceed as soon as the technical prerequisites exist.
 
 An exit test is a floor. It passes when the system at that stage is something
 its users could depend on for what the stage claims, so strengthen a test that
@@ -12,7 +14,6 @@ passes while the system plainly is not, and add what it failed to anticipate.
 
 Each exit test includes these, for everything built up to that point:
 
-- It runs from a fresh clone with the documented commands, on the image the tools build. `SILICA_MILESTONE=<n> tools/test.sh --deep --fresh` is green with no test skipped or weakened to get there: every check ran on that tree (nothing read back from the evidence store), and Silica was measured on it.
 - Every size budget and every performance gate due by then passes (`spec/ARCHITECTURE.md` section 2, `spec/TESTING.md` section 4), every metric with a Linux number in `os/bench/reference.tsv` meets its target of 15% better than it, and no metric due by then has an open gap (`os/bench/open.tsv`).
 - The boot matrix passes: 1, 2, 8 and 64 vCPUs, with 256 MB and 16 GB of RAM.
 - Every new trust boundary (syscall, protocol decoder, on-disk or on-wire parser, device response) has a fuzzer that runs 10 minutes clean.
@@ -21,6 +22,38 @@ Each exit test includes these, for everything built up to that point:
 - The owner can inspect every new component with the tools available at that stage: its state, its capabilities and its log.
 - Each new error path is exercised by a test and reports what failed and why.
 - The decisions underneath have been tested by this milestone's work. Whatever the new layer had to work around in a lower layer, such as an awkward protocol, a missing concept, or a cost that should not be there, is fixed in the layer that owns it before the next milestone builds on it.
+
+A milestone is declared once, when its list below is empty: from a fresh clone, on the image the tools build, `SILICA_MILESTONE=<n> tools/test.sh --deep --fresh` is green with no test skipped or weakened to get there (every check ran on that tree, nothing read back from the evidence store, and Silica measured on it). That run declares a milestone and has no other use; it is not how the list is found.
+
+## What the current milestone lacks
+
+M3, read against its exit test and the requirements above on 2026-11-22. Built already: the service manager
+booting from declarations; virtio-blk, virtio-net and NVMe in userspace, confined, each with a hostile driver in its
+place and the unconfined image; drivers killed under load (`recovery`, `net_recovery`, `recovery_nvme`); device fault
+injection; the keyboard and display drivers restarted under the shell; disk hot-add and removal; shutdown and reset;
+`trace`, `log` and `caps` in the shell. Still to build, in order:
+
+1. Fuzzers for M3's trust boundaries. The fuzz targets today are `acpi`, `elf`, `syscalls` (kernel) and `messages`
+   (IDL). Missing: what a device writes into a virtqueue (used ring, lengths, IDs; virtio-blk, virtio-net,
+   virtio-input), NVMe completion entries, the GPT parser in the partitions service, PCI configuration space and its
+   capability lists as the device manager reads them, `silica-queue`'s ring header words as a peer writes them, and
+   a service's log ring as logd reads it. Each runs 10 minutes clean.
+2. Interrupt remapping (C32). `kernel/arch/x86_64/iommu.rs` leaves interrupt remapping as the firmware set it, so a
+   confined device's message interrupts are not checked against the device allowed to send them; the hostile
+   driver has not yet tried to forge another device's interrupt, and should, and fail.
+3. Services killed under load. `console`, `logd`, `partitions` and `shell` declare `restart=always`, and no test
+   kills any of them under load; each gets one, inside the 250 ms deadline, nothing leaked. The device manager
+   cannot be restarted (the device memory is given to it outright): it is made restartable, or the spec says why
+   the system's survival does not depend on it.
+4. virtio-rng with the entropy service (D14), and virtio-console: both are M3 devices with no driver.
+5. The kernel's own messages and its panic on the framebuffer (C30), for a machine with no serial port.
+6. The IDL client encodes into and decodes from the IPC buffer (A13): `idl/rt/src/client.rs` keeps a request and a
+   reply buffer of `MAX_MESSAGE` bytes each and copies each way.
+7. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
+   host (ARCHITECTURE.md, Time), before drivers are tuned against it.
+8. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
+   network round trip and the null system call against Linux; boot time, timer overshoot, and the IPC and page-fault
+   instruction counts against their ratchets. Each line there says what change it waits for.
 
 ## Exit tests
 
