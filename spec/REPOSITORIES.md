@@ -28,7 +28,11 @@ The five linked M0 repositories and `system` exist on GitHub with `main` as thei
 Third-party drivers and apps live in their authors' own repositories and are
 published as packages. Nothing third-party is merged into these repos.
 
-Do not create a repository before its milestone. An empty repository is noise.
+Do not create a repository before its milestone. An empty repository is noise. Nor before its boundary is
+settled: a repository follows a stable interface, and until two drivers of a class have proven the class protocol
+and the driver framework has stopped changing weekly, `drivers` and `storage` live in `system/drivers/` and
+`system/storage/`, where a change to the framework and its users is one commit. They move out, with their history,
+when the M3 exit test passes.
 
 ## Dependencies
 

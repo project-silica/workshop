@@ -62,6 +62,9 @@ component when a working slice calls for it.
 - C28 Address-space table memory: grow a live AddressSpace's pool (on 64 vCPUs, roottest smp_run exhausts the root pool mapping its sparse thread stacks), give emptied tables back, PCID so a switch keeps the TLB (M2)
 - C29 Notification bound to a thread, so one receive waits on an endpoint and on interrupts (M3)
 - C31 Finer locks for capability and mapping operations once a measurement shows the all-processors lock or the single mapping lock limiting a workload (parallel page faults, process creation on many cores)
+- C32 Interrupt remapping (VT-d): message interrupts checked against the device allowed to send them, compatibility-format messages refused, so no device forges another's interrupt; needed too for processors numbered above 255 (M3)
+- C33 AMD-Vi on x86_64; SMMUv3 and message interrupts through the GIC's ITS on aarch64, where drivers have no interrupts yet (M3 for the ITS: the system image fails at its first driver on aarch64 until then)
+- C34 The firmware's requested device mappings (RMRR) honoured or the devices reset before translation is switched on; refused device accesses delivered to the device manager instead of only logged; per-processor interrupt vector tables when 192 lines are too few (M8)
 - C30 Early framebuffer console for the kernel's own messages on machines with no serial port (M3, with the local console)
 
 ## D. Core userspace (M2 to M3)

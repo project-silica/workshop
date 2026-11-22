@@ -50,6 +50,7 @@ An OS has no single reference implementation, so each layer gets its own.
 | Desktop behavior | Scripted input over the QEMU monitor (keys, pointer), assert on the accessibility tree dump, not on pixels, wherever possible. |
 | Boot | Boot under OVMF with Secure Boot on and off, with 1/2/8/64 vCPUs, 256 MB and 16 GB RAM. |
 | Reliability | Kill each driver and each restartable server under load; assert recovery inside a deadline and no data loss on committed writes. |
+| Driver confinement | A hostile driver in the real driver's place (`virtio-rogue`, started by the device manager with exactly a driver's capabilities): it claims another device and another device's interrupt, has its device write and read memory it never mapped and write memory mapped read-only, asks for physical addresses, and writes configuration space. Each must fail as designed and the system must still boot. Evidence is taken from who enforces the boundary: the kernel's line for each refused access, never the device's own report (QEMU's virtio-blk completes with success a write the IOMMU refused: the data went nowhere and the status says OK). |
 
 ## 4. Performance and size gates
 

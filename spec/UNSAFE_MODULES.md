@@ -12,6 +12,9 @@ Document each unsafe invariant at the call site.
 | kernel | `roottest/src/` | The in-OS test program: deliberate faults, thread entry points, code it writes and then executes |
 | kernel | `kernel-core/tests/support/` | The host test machine: memory from a `Vec` presented to the kernel as physical memory |
 
-Planned, to be added to the table when the code exists: the native runtime's process startup and TLS (`system/rt/`), the
-userspace allocator (`system/rt/alloc`), the ring library's shared-memory accessors (`system/rings/`), and each
-driver framework's MMIO and DMA accessors (`drivers/framework/`).
+| system | `rt/src/` | Process entry and the panic handler; the IPC buffer's address; `mem` (revoking and freeing memory the program promises not to use); `heap` (the allocator: free lists threaded through the free memory itself); `mmio` (volatile reads and writes of device registers, bounds-checked) |
+| system | `proc/src/` | Filling a child's memory through the parent's scratch mapping; the root task's view of the ramdisk |
+| system | `init/src/`, `systest/src/`, `stress/src/`, `devmgr/src/` | Program entry symbols; destroying objects the program made and no longer uses; `devmgr`: firmware tables and configuration space mapped from device memory |
+| system | `drivers/framework/src/` | Mapping a device's registers and DMA memory as `Mmio`; everything else in a driver goes through those accessors |
+
+Planned, to be added to the table when the code exists: the ring library's shared-memory accessors (`system/rings/`).
