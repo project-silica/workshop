@@ -117,6 +117,7 @@ component when a working slice calls for it.
 - E16 Driver porting pipeline: behavior descriptions, register-definition generator, per-class frameworks (ARCHITECTURE.md section 15)
 - E17 Driver verification rig: register-trace capture and comparison against a reference driver, per-driver benchmark gate
 - E18 Driver packages: manifest device matching, independent update, automatic rollback of a repeatedly crashing driver
+- E19 Orderly driver stop: the device manager tells each driver the system is going down and gives it a moment (an NVMe controller's shutdown notification, a volatile cache flushed, a NIC's DMA stopped) before ending it (M3)
 
 ## F. Storage (M3 to M5)
 
