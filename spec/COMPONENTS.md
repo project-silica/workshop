@@ -104,6 +104,7 @@ component when a working slice calls for it.
 - E03 ACPI AML interpreter service; EC, battery, thermal, buttons
 - E04 virtio: blk, net, console, rng, gpu, input, fs, balloon, sound
 - E05 NVMe, AHCI/SATA, USB mass storage, SD/eMMC
+- E05a Several disks behind one device: a unit in `silica.device.Manager`'s identity, so each NVMe namespace (later each USB mass-storage LUN) is a disk of its own (M5)
 - E06 xHCI, USB hub, HID (keyboard, mouse, touchpad, gamepad), USB audio, USB serial, USB-C/PD policy
 - E07 Ethernet: e1000e, igc, one 10G+ NIC
 - E08 Wi-Fi: one family (chosen at M8) + regulatory domain; Bluetooth HCI + HID/audio profiles
