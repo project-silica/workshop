@@ -187,6 +187,7 @@ gate that let it through would defer the discovery to a rewrite. Every gate is a
 | Small-file metadata throughput | at or above Linux | M5 |
 | Block I/O: guest CPU per operation at a fixed rate, virtio-blk from M3, NVMe from the milestone its driver lands | at or below Linux, each against the same device | M3 |
 | Block I/O: 4 KiB direct reads at depth 1 (median and p99) and depth 32 (throughput), unconfined and confined (`blk_read4k_*`) | at or better than Linux (`O_DIRECT` pread, io_uring at depth 32) | M3 |
+| Network: a 60-byte frame's round trip to the host (median and p99) and 1514-byte frames sent a second, unconfined and confined (`net_rtt*`, `net_tx*`) | at or better than Linux: raw frames through AF_PACKET (blocking send and receive; `sendmmsg` past the queueing discipline) and AF_XDP (zero-copy on virtio-net), the faster of the two for transmit | M3 |
 | HTTP request p99 latency at a fixed rate, 64 connections | at or below Linux | M4 |
 | TCP: guest CPU per gigabyte at a fixed rate | at or below Linux | M4 |
 
