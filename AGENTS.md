@@ -104,13 +104,13 @@ This project was once run by a process larger than its code: an architect role, 
 
 The record of this project is the code, the tests, the spec and the commit history. Do not add tracking files, progress logs, numbered decision records, approval checklists, agent roles, or tools that manage the work instead of building, booting, testing and measuring Silica. Before adding any document or tool, ask whether Silica would build, boot, pass its tests or be understood any worse without it.
 
-Spend effort where the system is. The tools are currently far larger than the kernel, and `TESTING.md` section 4 describes gates the tools do not yet implement. Bring a gate's tooling up to the spec in the slice that first produces something for it to measure.
+Spend effort where the system is. The tools are currently far larger than the kernel, and `TESTING.md` section 4 describes gates the tools do not yet implement. Bring a gate's tooling up to the spec in the slice that first produces something for it to measure. The same holds for time: an hour of tests or benchmarks that shows nothing new is an hour of process.
 
 </no_process_layer>
 
 <working_method>
 
-Each session starts without memory of the last. Git history, the tests and the spec are the state, so begin with `./tools/test.sh --fast`, a boot, and the recent commits of the repositories you will touch. Commit working states, and say in each commit what ran and what a user or developer can now do.
+Each session starts without memory of the last, but the tools remember what has been shown. Git history, the tests and the spec are the state, so begin with the recent commits of the repositories you will touch, `./tools/test.sh --fast` (held, or under a minute) and `./tools/test.sh --plan --full` (runs nothing; says what this tree still owes and why). Then build. What the last commit says it ran, it ran: verifying it again is not a way to start. Commit working states, and say in each commit what ran and what a user or developer can now do.
 
 Work in vertical slices. Take the user's requested outcome or the next missing behaviour in `MILESTONES.md` and follow one useful operation through the whole system. The first failure along that path is what to build next.
 
@@ -119,6 +119,26 @@ Build your own eyes early. You can observe Silica only through the serial consol
 Keep `unsafe` inside the modules listed in `spec/UNSAFE_MODULES.md`, with the invariant stated at each use.
 
 </working_method>
+
+<tests_and_measurements>
+
+Test time is spent where the change is. `spec/TESTING.md` section 2 is the strategy; this is the short form.
+
+A tier (`--fast`, `--full`, `--deep`) says what must hold. The tools run only the checks whose inputs changed since they last passed, and hold the rest, in every worktree and every later session. So you never choose a subset by hand and never pay for what is already known, and you never run anything "to be sure": if nothing it depends on changed, it is not run, and running it would tell you nothing.
+
+- While changing something, run the one test that exercises it (`--guest NAME`, `cargo test -p <crate> <name>`). Before a commit, `--fast`. Before `./tools/pin.sh`, `--full`. `--deep --fresh` declares a milestone and has no other use.
+- `--fresh` is for a milestone's exit and for a concrete doubt about the store. It is not a habit.
+- A benchmark answers a question, so have the question first: did this change slow this path (`./tools/bench.sh --only <prefix>`), or which of these is faster (`./tools/bench.sh --compare A,B,C`: commits, a range, or other worktrees' kernels, all in one run; `--only insns` counts instructions for all of them at once, exactly, and is the first thing to ask of a change to a fixed path). A change that touches no measured path needs no benchmark, and `./tools/bench.sh` on an unchanged tree boots nothing and prints the results it has. Do not run it to see the numbers again.
+- Linux is the yardstick, not the product, and it is locked. Its numbers for this host are in `os/bench/reference.tsv`; the target on every metric is 15% better than that; no tool boots Linux, and neither do you. The one exception is a metric that is new: measure Linux for it once (`./tools/bench.sh --linux --only <metric>`) and lock its number in the commit that adds the metric. Otherwise do not measure Linux again, tune it, trace it or rebuild it. If a number there looks wrong, say so with the evidence and leave it: it changes by a decision, not by a rerun. A gap is closed in Silica, and what pushes a path on once it is past its target is its own ratchet, until it has nothing left to give.
+- Timed benchmark boots take the machine over, and are not started while someone is at its desktop. `./tools/bench.sh --only insns` is exact, disturbs nobody and is the first thing to run after a change to a kernel path.
+- A red result is information once. Fix it, or name its cause and record it where the next run shows it (a test that says what is missing; `os/bench/open.tsv` for a measured gap, with why), and go on. Do not run it again hoping. If you suspect noise, the instrument is wrong: fix the instrument.
+- One focused attempt at a performance gap (a profile, a design change measured with `--compare`) closes it or ends in a recorded open gap and a paragraph of what was learned. Then return to the system: a gap is closed before its milestone is declared, not before anything else is built.
+- A test that fails one run in ten has a race. Run that test by name until it fails, under load, and fix the race where it is.
+- Checks that judge logic run at once; a check that judges a time runs alone, or its answer is the host's and not the system's. Say which kind a new test is (`quiet` in the kernel's test manifest, `QUIET_SYSTEM` in `tools/test.sh`). When choosing between designs, build them in worktrees and compare them in one run instead of one after another.
+
+When the tools make you wait for something you already know, that is a defect in the tools. Fix it there (an input named too widely, a suite that runs one thing after another, a measurement not kept).
+
+</tests_and_measurements>
 
 <subagents>
 
@@ -146,7 +166,7 @@ When you stop, write for a reader who has not seen your work: what ran, what you
 
 <workspace>
 
-From the workshop root: `./bootstrap.sh` obtains the pinned repositories, `./tools/init.sh` checks the toolchain, `./tools/boot.sh` boots x86_64 in QEMU, and `./tools/test.sh --fast` checks the integrated build in under a minute. `--full` adds the complete guest tests, Miri, loom and the tool self-tests, `--deep` adds fuzzing, and `--guest NAME` runs one guest test. Results land under `target/logs/`.
+From the workshop root: `./bootstrap.sh` obtains the pinned repositories, `./tools/init.sh` checks the toolchain, `./tools/boot.sh` boots x86_64 in QEMU, and `./tools/test.sh --fast` checks the integrated build in under a minute. `--full` adds the complete guest tests, Miri, loom and the tool self-tests, `--deep` adds fuzzing, the benchmarks and the proofs, `--guest NAME` runs one guest test, `--plan` says what a tier would run, and `--fresh` holds nothing. Results land under `target/logs/`; what has passed, and on which inputs, is under `target/evidence/` of the main workshop, shared by its worktrees.
 
 `spec/` is part of this repository. `idl`, `kernel` and `os` are separate Git repositories checked out inside it, and `tools` links to `os/tools`. Commit in the repository that owns the change. When the integrated build passes with new component commits, run `./tools/pin.sh`, which records them in `os/manifest.toml` and `bootstrap.pins`, then commit `bootstrap.pins` here. Push component repositories before the workshop.
 

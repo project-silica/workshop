@@ -12,8 +12,8 @@ passes while the system plainly is not, and add what it failed to anticipate.
 
 Each exit test includes these, for everything built up to that point:
 
-- It runs from a fresh clone with the documented commands, on the image the tools build. `tools/test.sh --full` is green with no test skipped or weakened to get there.
-- Every size budget and every performance gate due by then passes (`spec/ARCHITECTURE.md` section 2, `spec/TESTING.md` section 4), and each new metric is recorded against the Linux baseline.
+- It runs from a fresh clone with the documented commands, on the image the tools build. `SILICA_MILESTONE=<n> tools/test.sh --deep --fresh` is green with no test skipped or weakened to get there: every check ran on that tree (nothing read back from the evidence store), and Silica was measured on it.
+- Every size budget and every performance gate due by then passes (`spec/ARCHITECTURE.md` section 2, `spec/TESTING.md` section 4), each new metric has Linux's number locked beside it (`os/bench/reference.tsv`) and meets its target of 15% better, and no metric due by then has an open gap (`os/bench/open.tsv`).
 - The boot matrix passes: 1, 2, 8 and 64 vCPUs, with 256 MB and 16 GB of RAM.
 - Every new trust boundary (syscall, protocol decoder, on-disk or on-wire parser, device response) has a fuzzer that runs 10 minutes clean.
 - Every new restartable component has been killed under load and has recovered inside its deadline with nothing leaked.
