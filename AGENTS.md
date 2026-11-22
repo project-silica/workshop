@@ -118,6 +118,8 @@ Build your own eyes early. You can observe Silica only through the serial consol
 
 Keep `unsafe` inside the modules listed in `spec/UNSAFE_MODULES.md`, with the invariant stated at each use.
 
+Edit files with the harness's own Edit and Write tools, so every change is tracked and shown to the owner as it is made. Use a script (Python, sed, awk) only for an edit those tools cannot reasonably make, such as one mechanical change across many files. Move changes between branches and worktrees with git: commit, merge, cherry-pick, rebase.
+
 </working_method>
 
 <tests_and_measurements>
