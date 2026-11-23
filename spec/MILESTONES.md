@@ -36,16 +36,20 @@ used ring of virtio-blk, -net and -input; `nvme_controller`: completion entries,
 `pci_config`: configuration space as the device manager and a driver read it; `ring`: `silica-queue`'s and the log's
 rings with a hostile peer; `gpt`); interrupt remapping (C32: a device raises only the interrupts its driver bound,
 shown by the hostile driver's forged message refused under `rogue_tcg`; the old-format block is owed on real
-hardware, COMPONENTS.md). Still to build, in order:
+hardware, COMPONENTS.md); services killed under their clients' load (`svcload`: partitions, logd, console and
+shell restarted ten times each, every recovery under a millisecond against the 250 ms deadline, no read or log
+line lost, no client failing, the service manager's free memory as before). Still to build, in order:
 
 1. `fault_virtio_blk_stuck` fails about one run in four on a loaded host: every check passes and `BOOT OK` is
    printed, then the kernel's power-off (QEMU's debug-exit port, then ACPI S5) returns without the machine stopping,
    and QEMU runs to its timeout with its main loop idle and both processors halted (`qemu.sh` now keeps the
    emulator's thread states beside the serial log on a timeout). No other test has shown it. Find the race and fix it.
-2. Services killed under load. `console`, `logd`, `partitions` and `shell` declare `restart=always`, and no test
-   kills any of them under load; each gets one, inside the 250 ms deadline, nothing leaked. The device manager
-   cannot be restarted (the device memory is given to it outright): it is made restartable, or the spec says why
-   the system's survival does not depend on it.
+   Related or not: under `--full` on 2026-11-22, `systest` (x86_64, eight processors) stopped once mid-run with QEMU
+   exiting 0, not through the debug-exit device, with no reset and nothing on stderr; it passed 6 of 6 alone.
+   `qemu.sh` now says what asked the emulator to stop (shutdown cause, run state, watchdog), so the next one explains
+   itself.
+2. The device manager cannot be restarted (the device memory is given to it outright, and `restart` refuses it):
+   it is made restartable, or the spec says why the system's survival does not depend on it.
 3. virtio-rng with the entropy service (D14), and virtio-console: both are M3 devices with no driver.
 4. The kernel's own messages and its panic on the framebuffer (C30), for a machine with no serial port.
 5. The IDL client encodes into and decodes from the IPC buffer (A13): `idl/rt/src/client.rs` keeps a request and a
