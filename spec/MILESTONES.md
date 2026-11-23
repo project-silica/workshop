@@ -62,7 +62,13 @@ QEMU traces no request for such a reset, so `qemu.sh` now names it when nothing 
 
 Still to build or explain, in order:
 
-1. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
+1. `net_recovery` under `--fast` on 2026-11-23 (the desktop in use) saw one recovery of 656 ms against its
+   250 ms deadline; the next 8 runs by name, 112 recoveries, took 2 ms at most. The time is counted from the client
+   noticing the driver's end to its first completion after, which spans the device manager stopping the driver,
+   starting the next, its start-up and the client's reconnection, and the run does not say which took it. First:
+   `netload` reports a slow recovery in those parts, so the next one explains itself; then run it under load until it
+   does.
+2. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
    host (ARCHITECTURE.md, Time), before drivers are tuned against it. Tried 2026-11-23 and not landed: timing each
    processor's first timer-ended halts (8 probes, 20 us ahead) gave 474-633 ns on the reference host's eight
    virtual processors, so twice that would watch 1 us, where the recorded sweep halved cross-processor round trips
@@ -72,7 +78,7 @@ Still to build or explain, in order:
    another's interrupt, round trip, between two processors and off the boot path. First, when the desktop is idle,
    sweep again (`bench.sh --sweep IDLE_WATCH=1000,2000,5000 --only ipc_cross`): the sweep predates the adaptive
    watch, which grows after halts that work ended soon and may make a short floor harmless.
-2. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
+3. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
    network round trip and the null system call against Linux; boot time and timer overshoot against their ratchets
    (the IPC and page-fault instruction counts are within theirs again since 2026-11-23: a system call no longer
    returns to its stub before scheduling, null syscall 138.6 -> 113.4 instructions, IPC round trip 1008 -> 907.5). Each line there says what change it waits for. The timed block and
