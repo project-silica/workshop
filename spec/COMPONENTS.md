@@ -105,7 +105,7 @@ component when a working slice calls for it.
 - E02 PCI/PCIe bus driver (ECAM, MSI-X, capabilities, SR-IOV awareness)
 - E03 ACPI AML interpreter service; EC, battery, thermal, buttons
 - E04 virtio: blk, net, console, rng, gpu, input, fs, balloon, sound
-- E04 virtio-input keeps keys typed while no client is connected (before the console attaches) and gives them to the first; keys typed while a connected console is restarting still go to the old console's ring and are lost: the driver needs to see its client end (its ring's memory taken back) and hold keys until the successor connects (M3)
+- E04 virtio-input keeps keys typed while no client is connected (before the console attaches, or once a connected one has ended: its ring's capability is gone) and gives them to the next. Owed: a test that types while the console is down; a restart is under a millisecond, the harness types a key per 60 ms, and stopping the console from the console port stops that port's shell too, so it needs a console down for longer than a keystroke from outside the console (M3)
 - E05 NVMe, AHCI/SATA, USB mass storage, SD/eMMC
 - E05a Several disks behind one device: a unit in `silica.device.Manager`'s identity, so each NVMe namespace (later each USB mass-storage LUN) is a disk of its own (M5)
 - E06 xHCI, USB hub, HID (keyboard, mouse, touchpad, gamepad), USB audio, USB serial, USB-C/PD policy
