@@ -77,6 +77,19 @@ Still to build or explain, in order:
    deadline. `netload` now says where a slow recovery's time went (until the next driver took the connection, with
    the tries, and from there to the first completion). Not reproduced since: 30 runs by name, 420 recoveries, the
    slowest 6 ms, 10 of the runs beside 16 busy processes. Waits for its next occurrence, which explains itself.
+3. Hosted deep run [45176778475](https://github.com/project-silica/os/actions/runs/45176778475/attempts/1)
+   reported 75 failures. In the ARM firmware from the runner (2025.11-3ubuntu7.3), the first instruction
+   translation fault recurred at the exception vector before the loader ran. With 2026.05-2ubuntu3 the same
+   scheduler guest passed on one and four processors locally, including four on Ubuntu's QEMU 10.2.1.
+   The counter built for its plugin API 5 counted 14,807,496 kernel instructions in one null-syscall
+   guest through BENCH DONE. Nightly now selects that firmware, installs cargo-fuzz and the counter's
+   headers, and archives the individual fuzz build logs, benchmark serial output and check durations. Verify on the hosted
+   runner. The 99 s fast-tier budget check (limit 60 s) still needs attribution. Without a dedicated
+   TAP echo processor the benchmark guest ran netcheck without a NIC (reproduced exit 17). The harness
+   now attaches a user-mode NIC on that host: ARP and ping pass and the guest reports BENCH DONE.
+   The TAP-only network metrics still require their echo. The separate hosted typeahead timeout is
+   consistent with a lost wakeup at console startup:
+   the console now arms its empty input ring before the keyboard or port can publish buffered input.
 
 ## Exit tests
 
