@@ -69,6 +69,7 @@ component when a working slice calls for it.
 - C34 The firmware's requested device mappings (RMRR) honoured or the devices reset before translation is switched on; refused device accesses delivered to the device manager instead of only logged; per-processor interrupt vector tables when 192 lines are too few (M8)
 - C35 The x86 harness exit (debug-exit port) only when the command line says a harness is there, as `exit=semihosting` does on Arm (M8)
 - C30 Early framebuffer console for the kernel's own messages on machines with no serial port (M3, with the local console)
+  - Owed (M4): kernel lines after the system starts reach only the serial port; a machine without one needs them in the log (a kernel ring logd reads). The aarch64 kernel draws nothing on a framebuffer yet.
 
 ## D. Core userspace (M2 to M3)
 
