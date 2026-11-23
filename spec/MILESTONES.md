@@ -73,8 +73,9 @@ Still to build or explain, in order:
    sweep again (`bench.sh --sweep IDLE_WATCH=1000,2000,5000 --only ipc_cross`): the sweep predates the adaptive
    watch, which grows after halts that work ended soon and may make a short floor harmless.
 2. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
-   network round trip and the null system call against Linux; boot time, timer overshoot, and the IPC and page-fault
-   instruction counts against their ratchets. Each line there says what change it waits for. The timed block and
+   network round trip and the null system call against Linux; boot time and timer overshoot against their ratchets
+   (the IPC and page-fault instruction counts are within theirs again since 2026-11-23: a system call no longer
+   returns to its stub before scheduling, null syscall 138.6 -> 113.4 instructions, IPC round trip 1008 -> 907.5). Each line there says what change it waits for. The timed block and
    network paths have not been measured since interrupts were remapped (QEMU's I/O APIC moved to userspace under
    KVM, and each route translated by the IOMMU): `bench.sh --only blk,net` when the desktop is idle says what it cost.
 
