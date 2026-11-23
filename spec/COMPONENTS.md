@@ -64,6 +64,7 @@ component when a working slice calls for it.
 - C29 Notification bound to a thread, so one receive waits on an endpoint and on interrupts (M3)
 - C31 Finer locks for capability and mapping operations once a measurement shows the all-processors lock or the single mapping lock limiting a workload (parallel page faults, process creation on many cores)
 - C32 Interrupt remapping (VT-d): message interrupts checked against the device allowed to send them, compatibility-format messages refused, so no device forges another's interrupt; needed too for processors numbered above 255 (M3)
+  - Owed (M8): that compatibility-format messages are refused is shown only on real VT-d hardware. QEMU's model passes them unconditionally (hw/i386/intel_iommu.c, `vtd_interrupt_remap_msi`: "This is compatible mode"), so the hostile driver's old-format message is reported, not judged; the reference machines' run of `rogue` must refuse it with fault reason 0x25.
 - C33 AMD-Vi on x86_64; SMMUv3 on aarch64 (its message interrupts, through the GICv3 ITS, are built; two-level ITS device tables and the IORT's requester-ID mapping read rather than assumed are owed)
 - C34 The firmware's requested device mappings (RMRR) honoured or the devices reset before translation is switched on; refused device accesses delivered to the device manager instead of only logged; per-processor interrupt vector tables when 192 lines are too few (M8)
 - C35 The x86 harness exit (debug-exit port) only when the command line says a harness is there, as `exit=semihosting` does on Arm (M8)
