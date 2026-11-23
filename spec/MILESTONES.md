@@ -39,7 +39,8 @@ shown by the hostile driver's forged message refused under `rogue_tcg`; the old-
 hardware, COMPONENTS.md); services killed under their clients' load (`svcload`: partitions, logd, console,
 shell and the device manager restarted ten times each, every recovery inside the 250 ms deadline (the device
 manager's 65 ms, the others' under a millisecond), no read or log line lost, no client failing, the service
-manager's free memory as before). Still to build, in order:
+manager's free memory as before); virtio-rng and the entropy service (D14: `entropy`); virtio-console, the shell
+reached from a virtual machine's host through it (`console_port`). Still to build, in order:
 
 1. `fault_virtio_blk_stuck` fails about one run in four on a loaded host: every check passes and `BOOT OK` is
    printed, then the kernel's power-off (QEMU's debug-exit port, then ACPI S5) returns without the machine stopping,
@@ -49,13 +50,12 @@ manager's free memory as before). Still to build, in order:
    exiting 0, not through the debug-exit device, with no reset and nothing on stderr; it passed 6 of 6 alone.
    `qemu.sh` now says what asked the emulator to stop (shutdown cause, run state, watchdog), so the next one explains
    itself.
-2. virtio-console: an M3 device with no driver (virtio-rng and the entropy service, D14, are built: `entropy`).
-3. The kernel's own messages and its panic on the framebuffer (C30), for a machine with no serial port.
-4. The IDL client encodes into and decodes from the IPC buffer (A13): `idl/rt/src/client.rs` keeps a request and a
+2. The kernel's own messages and its panic on the framebuffer (C30), for a machine with no serial port.
+3. The IDL client encodes into and decodes from the IPC buffer (A13): `idl/rt/src/client.rs` keeps a request and a
    reply buffer of `MAX_MESSAGE` bytes each and copies each way.
-5. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
+4. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
    host (ARCHITECTURE.md, Time), before drivers are tuned against it.
-6. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
+5. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
    network round trip and the null system call against Linux; boot time, timer overshoot, and the IPC and page-fault
    instruction counts against their ratchets. Each line there says what change it waits for. The timed block and
    network paths have not been measured since interrupts were remapped (QEMU's I/O APIC moved to userspace under
