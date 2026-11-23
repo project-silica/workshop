@@ -49,7 +49,7 @@ manager's free memory as before). Still to build, in order:
    exiting 0, not through the debug-exit device, with no reset and nothing on stderr; it passed 6 of 6 alone.
    `qemu.sh` now says what asked the emulator to stop (shutdown cause, run state, watchdog), so the next one explains
    itself.
-2. virtio-rng with the entropy service (D14), and virtio-console: both are M3 devices with no driver.
+2. virtio-console: an M3 device with no driver (virtio-rng and the entropy service, D14, are built: `entropy`).
 3. The kernel's own messages and its panic on the framebuffer (C30), for a machine with no serial port.
 4. The IDL client encodes into and decodes from the IPC buffer (A13): `idl/rt/src/client.rs` keeps a request and a
    reply buffer of `MAX_MESSAGE` bytes each and copies each way.
