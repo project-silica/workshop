@@ -60,26 +60,20 @@ processors moved to the kernel's root, 0 with the handshake now in the kernel (a
 only after each processor on it has answered that it left; loom model and host test beside it). Under `-no-reboot`
 QEMU traces no request for such a reset, so `qemu.sh` now names it when nothing asked the emulator to stop.
 
+The idle watch's length no longer rests on one host's sweep: each processor's watch learns from its halts, and with
+that in place 1, 2 and 5 us minimums give the same cross-processor IPC within the noise (2026-11-23; ARCHITECTURE.md,
+Time). A boot-time measurement was tried and is not needed.
+
 Still to build or explain, in order:
 
-1. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
-   host (ARCHITECTURE.md, Time), before drivers are tuned against it. Tried 2026-11-23 and not landed: timing each
-   processor's first timer-ended halts (8 probes, 20 us ahead) gave 474-633 ns on the reference host's eight
-   virtual processors, so twice that would watch 1 us, where the recorded sweep halved cross-processor round trips
-   (472,000 a second against 1,041,000 at 5 us). A short halt there is caught by the host's own halt polling and
-   costs the woken side little; what the watch saves is mostly the waker's interrupt (a VM exit on the sending
-   processor), which a processor timing itself never sees. The quantity to measure is a halted processor woken by
-   another's interrupt, round trip, between two processors and off the boot path. First, when the desktop is idle,
-   sweep again (`bench.sh --sweep IDLE_WATCH=1000,2000,5000 --only ipc_cross`): the sweep predates the adaptive
-   watch, which grows after halts that work ended soon and may make a short floor harmless.
-2. The performance gaps in `os/bench/open.tsv`. Timed on 2026-11-23 (`bench.sh --now`): the null system call
+1. The performance gaps in `os/bench/open.tsv`. Timed on 2026-11-23 (`bench.sh --now`): the null system call
    (82 ns against Linux 97, the 82.5 target met), block reads at depth 32 (507,000 a second against 422,000) and the
    timer overshoot's p99 (6.1 us) are closed. Still open: block reads at depth 1 (4.88 us against 5.15, 0.95 of
    Linux) and their p99 (0.93), the network round trip (0.92), boot (18.1 ms against its 13.8 ms ratchet); and, new,
    the context switch (+3 ns) and the median timer overshoot (+8%), which a same-run compare puts on this session's
    kernel changes, and cross-processor IPC, which it does not (the kernel before them is as far under its ratchet
    today). Each line there says what it waits for.
-3. `net_recovery` under `--fast` on 2026-11-23 (the desktop in use) saw one recovery of 656 ms against its 250 ms
+2. `net_recovery` under `--fast` on 2026-11-23 (the desktop in use) saw one recovery of 656 ms against its 250 ms
    deadline. `netload` now says where a slow recovery's time went (until the next driver took the connection, with
    the tries, and from there to the first completion). Not reproduced since: 30 runs by name, 420 recoveries, the
    slowest 6 ms, 10 of the runs beside 16 busy processes. Waits for its next occurrence, which explains itself.
