@@ -45,7 +45,9 @@ reached from a virtual machine's host through it (`console_port`). Still to buil
 1. `fault_virtio_blk_stuck` fails about one run in four on a loaded host: every check passes and `BOOT OK` is
    printed, then the kernel's power-off (QEMU's debug-exit port, then ACPI S5) returns without the machine stopping,
    and QEMU runs to its timeout with its main loop idle and both processors halted (`qemu.sh` now keeps the
-   emulator's thread states beside the serial log on a timeout). No other test has shown it. Find the race and fix it.
+   emulator's thread states beside the serial log on a timeout). No other test has shown it. Seen 7 times in about
+   35 runs before interrupt remapping moved the I/O APIC into QEMU (split irqchip), none in 17 since, under the same
+   load: changed, not explained. Find the race and fix it, or show where it was.
    Related or not: under `--full` on 2026-11-22, `systest` (x86_64, eight processors) stopped once mid-run with QEMU
    exiting 0, not through the debug-exit device, with no reset and nothing on stderr; it passed 6 of 6 alone.
    `qemu.sh` now says what asked the emulator to stop (shutdown cause, run state, watchdog), so the next one explains
