@@ -36,27 +36,31 @@ used ring of virtio-blk, -net and -input; `nvme_controller`: completion entries,
 `pci_config`: configuration space as the device manager and a driver read it; `ring`: `silica-queue`'s and the log's
 rings with a hostile peer; `gpt`); interrupt remapping (C32: a device raises only the interrupts its driver bound,
 shown by the hostile driver's forged message refused under `rogue_tcg`; the old-format block is owed on real
-hardware, COMPONENTS.md); services killed under their clients' load (`svcload`: partitions, logd, console and
-shell restarted ten times each, every recovery under a millisecond against the 250 ms deadline, no read or log
-line lost, no client failing, the service manager's free memory as before). Still to build, in order:
+hardware, COMPONENTS.md); services killed under their clients' load (`svcload`: partitions, logd, console,
+shell and the device manager restarted ten times each, every recovery inside the 250 ms deadline (the device
+manager's 65 ms, the others' under a millisecond), no read or log line lost, no client failing, the service
+manager's free memory as before); virtio-rng and the entropy service (D14: `entropy`); virtio-console, the shell
+reached from a virtual machine's host through it (`console_port`); the kernel's lines until the system starts, and
+its panic, on the framebuffer (C30, `panic_screen`); the IDL client's one in-place message buffer (A13; why not the
+IPC buffer itself: IDL_RATIONALE.md).
 
-1. `fault_virtio_blk_stuck` fails about one run in four on a loaded host: every check passes and `BOOT OK` is
-   printed, then the kernel's power-off (QEMU's debug-exit port, then ACPI S5) returns without the machine stopping,
-   and QEMU runs to its timeout with its main loop idle and both processors halted (`qemu.sh` now keeps the
-   emulator's thread states beside the serial log on a timeout). No other test has shown it. Find the race and fix it.
-   Related or not: under `--full` on 2026-11-22, `systest` (x86_64, eight processors) stopped once mid-run with QEMU
+The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
+archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
+with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in
+that VM. In a second batch of eight, the parent read QEMU's `shutdown_requested` via `/proc/<pid>/mem` during the
+stall: 6 (guest shutdown), with its main thread asleep in `do_sys_poll`. Opening and closing the monitor socket
+without sending a command made QEMU exit with the original debug-exit status 33. The normal test still requires
+the VM to exit by itself. Run one fault case by its reported name, e.g. `tools/test.sh --guest fault_virtio_blk_stuck`.
+
+Still to build or explain, in order:
+
+1. Under `--full` on 2026-11-22, `systest` (x86_64, eight processors) stopped once mid-run with QEMU
    exiting 0, not through the debug-exit device, with no reset and nothing on stderr; it passed 6 of 6 alone.
    `qemu.sh` now says what asked the emulator to stop (shutdown cause, run state, watchdog), so the next one explains
    itself.
-2. The device manager cannot be restarted (the device memory is given to it outright, and `restart` refuses it):
-   it is made restartable, or the spec says why the system's survival does not depend on it.
-3. virtio-rng with the entropy service (D14), and virtio-console: both are M3 devices with no driver.
-4. The kernel's own messages and its panic on the framebuffer (C30), for a machine with no serial port.
-5. The IDL client encodes into and decodes from the IPC buffer (A13): `idl/rt/src/client.rs` keeps a request and a
-   reply buffer of `MAX_MESSAGE` bytes each and copies each way.
-6. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
+2. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
    host (ARCHITECTURE.md, Time), before drivers are tuned against it.
-7. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
+3. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
    network round trip and the null system call against Linux; boot time, timer overshoot, and the IPC and page-fault
    instruction counts against their ratchets. Each line there says what change it waits for. The timed block and
    network paths have not been measured since interrupts were remapped (QEMU's I/O APIC moved to userspace under
