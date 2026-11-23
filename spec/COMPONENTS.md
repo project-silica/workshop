@@ -142,6 +142,7 @@ component when a working slice calls for it.
 ## G. Network (M4)
 
 - G01 Netstack core: interfaces, routing, neighbor tables, sockets API in IDL
+  - Built (M4, first slice): `netd` on one interface: ARP (16 neighbours, one packet held while its next hop is asked), IPv4 without fragments, ICMP echo, UDP, DHCPv4 client (`silica-inet`, fuzzed). Owed: sockets for programs (the IDL protocol), TCP, IPv6, more than one interface, reassembly, the drop counters readable from the shell, `partitions` and `entropy` moved to `watch` (they still ask the device manager in a loop at boot)
 - G02 IPv4, IPv6, ICMP/ICMPv6, NDP, ARP, fragmentation, PMTU
 - G03 TCP (SACK, window scaling, timestamps, ECN, CUBIC + BBR), UDP, raw sockets by capability
 - G04 DHCPv4, DHCPv6, SLAAC, RA handling
