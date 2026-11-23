@@ -52,15 +52,19 @@ stall: 6 (guest shutdown), with its main thread asleep in `do_sys_poll`. Opening
 without sending a command made QEMU exit with the original debug-exit status 33. The normal test still requires
 the VM to exit by itself. Run one fault case by its reported name, e.g. `tools/test.sh --guest fault_virtio_blk_stuck`.
 
+The `systest` stop under `--full` on 2026-11-22 (QEMU exiting 0 mid-run, not through the debug-exit device) was the
+guest resetting itself: on x86_64 every address-space root maps the kernel, and a processor idle or waiting for its
+lock still ran on the root of a program another processor had just destroyed, whose memory a new object then
+reused. Sixteen copies at a time, 240 runs: 7 failed (six resets, one double fault in the idle halt), 1 with idle
+processors moved to the kernel's root, 0 with the handshake now in the kernel (a destroyed root's memory is reused
+only after each processor on it has answered that it left; loom model and host test beside it). Under `-no-reboot`
+QEMU traces no request for such a reset, so `qemu.sh` now names it when nothing asked the emulator to stop.
+
 Still to build or explain, in order:
 
-1. Under `--full` on 2026-11-22, `systest` (x86_64, eight processors) stopped once mid-run with QEMU
-   exiting 0, not through the debug-exit device, with no reset and nothing on stderr; it passed 6 of 6 alone.
-   `qemu.sh` now says what asked the emulator to stop (shutdown cause, run state, watchdog), so the next one explains
-   itself.
-2. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
+1. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
    host (ARCHITECTURE.md, Time), before drivers are tuned against it.
-3. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
+2. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
    network round trip and the null system call against Linux; boot time, timer overshoot, and the IPC and page-fault
    instruction counts against their ratchets. Each line there says what change it waits for. The timed block and
    network paths have not been measured since interrupts were remapped (QEMU's I/O APIC moved to userspace under
