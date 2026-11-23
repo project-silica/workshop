@@ -186,8 +186,11 @@ The design that removes them:
    the object is an `Endpoint`, because the protocol is a contract (`spec/IDL.md` section 3). Host stand-ins
    return `None` or a fixed name.
 2. **Move semantics.** `Capability` does not require `Clone`. `Transport::call` takes the request capabilities by
-   value: `call(&mut self, request: &[u8], caps: CapList<C>, reply: &mut [u8], reply_caps: &mut CapList<C>)`.
-   From that call on, the transport owns them: it transfers them, or releases them when the call fails. Generated
+   value: `call(&mut self, message: &mut [u8], len: usize, caps: CapList<C>, reply_caps: &mut CapList<C>)`: the
+   request is `message[..len]` and the reply is written over `message`, one buffer per client (the request is dead
+   once sent). The buffer is the client's, not the thread's IPC buffer: every client of a thread shares that one,
+   and a reply's views live past the call, so decoding in place there would let one client's call rewrite
+   another's reply. From that call on, the transport owns them: it transfers them, or releases them when the call fails. Generated
    client methods take capability parameters by value. When a request is `too_large` (detected before `call`),
    the client drops the capabilities it was given, and the caller does not get them back. `ClientCore` never
    clears a list the caller still holds.
