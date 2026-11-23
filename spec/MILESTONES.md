@@ -78,12 +78,13 @@ Still to build or explain, in order:
    another's interrupt, round trip, between two processors and off the boot path. First, when the desktop is idle,
    sweep again (`bench.sh --sweep IDLE_WATCH=1000,2000,5000 --only ipc_cross`): the sweep predates the adaptive
    watch, which grows after halts that work ended soon and may make a short floor harmless.
-3. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
-   network round trip and the null system call against Linux; boot time and timer overshoot against their ratchets
-   (the IPC and page-fault instruction counts are within theirs again since 2026-11-23: a system call no longer
-   returns to its stub before scheduling, null syscall 138.6 -> 113.4 instructions, IPC round trip 1008 -> 907.5). Each line there says what change it waits for. The timed block and
-   network paths have not been measured since interrupts were remapped (QEMU's I/O APIC moved to userspace under
-   KVM, and each route translated by the IOMMU): `bench.sh --only blk,net` when the desktop is idle says what it cost.
+3. The performance gaps in `os/bench/open.tsv`. Timed on 2026-11-23 (`bench.sh --now`): the null system call
+   (82 ns against Linux 97, the 82.5 target met), block reads at depth 32 (507,000 a second against 422,000) and the
+   timer overshoot's p99 (6.1 us) are closed. Still open: block reads at depth 1 (4.88 us against 5.15, 0.95 of
+   Linux) and their p99 (0.93), the network round trip (0.92), boot (18.1 ms against its 13.8 ms ratchet); and, new,
+   the context switch (+3 ns) and the median timer overshoot (+8%), which a same-run compare puts on this session's
+   kernel changes, and cross-processor IPC, which it does not (the kernel before them is as far under its ratchet
+   today). Each line there says what it waits for.
 
 ## Exit tests
 
