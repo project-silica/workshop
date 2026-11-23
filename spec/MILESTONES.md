@@ -63,7 +63,15 @@ QEMU traces no request for such a reset, so `qemu.sh` now names it when nothing 
 Still to build or explain, in order:
 
 1. The idle watch's length from the halt-and-wake cost each machine measures at boot, instead of 5 us swept on one
-   host (ARCHITECTURE.md, Time), before drivers are tuned against it.
+   host (ARCHITECTURE.md, Time), before drivers are tuned against it. Tried 2026-11-23 and not landed: timing each
+   processor's first timer-ended halts (8 probes, 20 us ahead) gave 474-633 ns on the reference host's eight
+   virtual processors, so twice that would watch 1 us, where the recorded sweep halved cross-processor round trips
+   (472,000 a second against 1,041,000 at 5 us). A short halt there is caught by the host's own halt polling and
+   costs the woken side little; what the watch saves is mostly the waker's interrupt (a VM exit on the sending
+   processor), which a processor timing itself never sees. The quantity to measure is a halted processor woken by
+   another's interrupt, round trip, between two processors and off the boot path. First, when the desktop is idle,
+   sweep again (`bench.sh --sweep IDLE_WATCH=1000,2000,5000 --only ipc_cross`): the sweep predates the adaptive
+   watch, which grows after halts that work ended soon and may make a short floor harmless.
 2. The performance gaps in `os/bench/open.tsv`: block reads at depth 1 and their p99, block reads at depth 32, the
    network round trip and the null system call against Linux; boot time, timer overshoot, and the IPC and page-fault
    instruction counts against their ratchets. Each line there says what change it waits for. The timed block and
