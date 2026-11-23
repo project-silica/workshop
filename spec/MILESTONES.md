@@ -66,13 +66,12 @@ Time). A boot-time measurement was tried and is not needed.
 
 Still to build or explain, in order:
 
-1. The performance gaps in `os/bench/open.tsv`. Timed on 2026-11-23 (`bench.sh --now`): the null system call
-   (82 ns against Linux 97, the 82.5 target met), block reads at depth 32 (507,000 a second against 422,000) and the
-   timer overshoot's p99 (6.1 us) are closed. Still open: block reads at depth 1 (4.88 us against 5.15, 0.95 of
-   Linux) and their p99 (0.93), the network round trip (0.92), boot (18.1 ms against its 13.8 ms ratchet); and, new,
-   the context switch (+3 ns) and the median timer overshoot (+8%), which a same-run compare puts on this session's
-   kernel changes, and cross-processor IPC, which it does not (the kernel before them is as far under its ratchet
-   today). Each line there says what it waits for.
+1. The performance gaps in `os/bench/open.tsv`. Block reads at depth 1 closed on 2026-11-23 by watched interrupts
+   (ARCHITECTURE.md section 7: 3.64 us against Linux 5.15, p99 4.60 against 5.63), and the network round trip's p99
+   with them. Still open: the network round trip (9.15 us against 10.23, 0.89 of Linux; its line says what is
+   next), boot (18.1 ms against its 13.8 ms ratchet), transmit throughput 2% under its best (the committed tree
+   measures the same: not attributed), cross-processor IPC and the median timer overshoot. Each line there says
+   what it waits for.
 2. `net_recovery` under `--fast` on 2026-11-23 (the desktop in use) saw one recovery of 656 ms against its 250 ms
    deadline. `netload` now says where a slow recovery's time went (until the next driver took the connection, with
    the tries, and from there to the first completion). Not reproduced since: 30 runs by name, 420 recoveries, the
