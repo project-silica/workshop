@@ -42,15 +42,19 @@ manager's 65 ms, the others' under a millisecond), no read or log line lost, no 
 manager's free memory as before); virtio-rng and the entropy service (D14: `entropy`); virtio-console, the shell
 reached from a virtual machine's host through it (`console_port`); the kernel's lines until the system starts, and
 its panic, on the framebuffer (C30, `panic_screen`); the IDL client's one in-place message buffer (A13; why not the
-IPC buffer itself: IDL_RATIONALE.md). Still to build, in order:
+IPC buffer itself: IDL_RATIONALE.md).
 
-1. `fault_virtio_blk_stuck` fails about one run in four on a loaded host: every check passes and `BOOT OK` is
-   printed, then the kernel's power-off (QEMU's debug-exit port, then ACPI S5) returns without the machine stopping,
-   and QEMU runs to its timeout with its main loop idle and both processors halted (`qemu.sh` now keeps the
-   emulator's thread states beside the serial log on a timeout). No other test has shown it. Seen 7 times in about
-   35 runs before interrupt remapping moved the I/O APIC into QEMU (split irqchip), none in 17 since, under the same
-   load: changed, not explained. Find the race and fix it, or show where it was.
-   Related or not: under `--full` on 2026-11-22, `systest` (x86_64, eight processors) stopped once mid-run with QEMU
+The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
+archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
+with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in
+that VM. In a second batch of eight, the parent read QEMU's `shutdown_requested` via `/proc/<pid>/mem` during the
+stall: 6 (guest shutdown), with its main thread asleep in `do_sys_poll`. Opening and closing the monitor socket
+without sending a command made QEMU exit with the original debug-exit status 33. The normal test still requires
+the VM to exit by itself. Run one fault case by its reported name, e.g. `tools/test.sh --guest fault_virtio_blk_stuck`.
+
+Still to build or explain, in order:
+
+1. Under `--full` on 2026-11-22, `systest` (x86_64, eight processors) stopped once mid-run with QEMU
    exiting 0, not through the debug-exit device, with no reset and nothing on stderr; it passed 6 of 6 alone.
    `qemu.sh` now says what asked the emulator to stop (shutdown cause, run state, watchdog), so the next one explains
    itself.
