@@ -137,12 +137,14 @@ Still to build, in order:
    times). Built since: the device's transmit offloads (G14; `silica.net.Device` version 3, virtio-net, netd,
    ARCHITECTURE.md's TCP section): p50 80.8 us against Linux's 101.5, p99 197 against 176.6, the guest's
    processors per GiB 3.09 s at 200 MB/s and 3.83 s at 50 MB/s (Linux 0.87 and 1.07). Still to build, in order:
-   (a) e1000e's checksum and TSO context descriptors, so the second driver offloads what the device has;
-   (b) the rest of the cost per GiB, by a profile at 50 MB/s: VM exits (the virtual processors' threads
-   spent about 3.5 times the guest's own cycles: doorbells, halts, IPIs), the idle watch before a halt
-   (27k of 42k kernel samples), netd's copies (stream to scratch to the send ring to the frame); (c) a
-   server group in `bench.sh` booting each server image, timed and pinned, and the Linux numbers measured
-   once (`--linux`).
+   (a) the guest's processors per GiB, the open gap `tcp_cpu_gb` (3.86 times Linux, timed): the idle
+   watch is 71% of the guest's cycles at 200 MB/s; a 20 us cap cut a third untimed but cost depth-32 block
+   reads 5.6% in the sweep, so the watch must spend only what the halt it avoids costs (its line in
+   `bench/open.tsv`), then netd's copies; (b) e1000e's checksum and TSO context descriptors, so the second
+   driver offloads what the device has. Built: the server group in `bench.sh` (`http_p50`, `http_p99`,
+   `tcp_cpu_gb`, `boot_server`; `boot_server()`), Linux's numbers locked from one `--linux` session
+   (2026-11-24, 8 processors): HTTP p50 92.5 us against 159.8 (0.58), p99 399 against 639 (0.62), boot to
+   the first answer 66.7 ms against 1,187 (0.06).
 2. The 24 h soak under mixed load: memory and capabilities flat, no request failed (a run on this host,
    its evidence committed).
 
