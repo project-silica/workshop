@@ -36,4 +36,4 @@ when the M3 exit test passes.
 
 ## Dependencies
 
-Applications and services use the public IDL and libsys interfaces. A repository that uses another's crates names them by path, as its sibling in the workshop: the workshop layout is the build layout. The kernel does not import service implementations. The integration repository builds images and runs system tests against the revisions in its manifest.
+Applications and services use the public IDL and libsys interfaces. A repository that uses another's crates names them by path, as its sibling in the workshop: the workshop layout is the build layout. The kernel does not import service implementations. The integration repository (`os`) may use any repository's crates, as it builds and tests what each makes: its host tools speak the system's protocols with the system's own crates (the owner's `silica-remote` uses `silica-crypto`, `silica-remote` and the generated bindings). Nothing depends on `os` or the workshop. The integration repository builds images and runs system tests against the revisions in its manifest.

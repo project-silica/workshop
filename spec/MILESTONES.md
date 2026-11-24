@@ -104,6 +104,31 @@ Still to build or explain, in order:
    consistent with a lost wakeup at console startup:
    the console now arms its empty input ring before the keyboard or port can publish buffered input.
 
+M4 is built ahead while M3's first item waits for timed benchmark sessions on an idle desktop and its third for
+the hosted run. Read against M4's exit test on 2026-11-24. Built: DHCP, SNTP, the wall clock from the hardware
+clock, TCP for programs and 10,000 checked HTTP answers (`http_load`), the same over e1000e, the stack killed
+under load (`http_restart`), the packet parsers fuzzed (`frames`, `tcp_peer`, `e1000e_device`), no periodic
+wake-ups on the idle server (`idle`), a remote management session that inspects, restarts and updates any
+service, the session's own included (`remote`, fuzz target `session`; ARCHITECTURE.md section 14), the program
+loader's checks fuzzed (`image`), and the interop suite against the host's Linux stack over a tap (`interop`:
+eight cases on a plain path, with a 536-byte MSS and an 8 KiB window, and with 2% loss, 1% duplication and 10%
+reordering each way; it found four defects, fixed: TIME-WAIT holding 64 KiB of buffers a connection for a minute,
+every 32 KiB buffer a frame of its own so the stack ran out of capability slots at about 240 connections, a
+finished stream closed at once losing its last bytes to a reset, and a server that died on a refused accept).
+Still to build, in order:
+
+1. TCP under loss: 16 MiB at 2% loss, 1% duplication and 10% reordering each way over a 2 ms path takes 22 s
+   (0.75 MB/s, `interop` lossy/large). Linux to Linux on the same impairments (two namespaces on a veth, offloads
+   off so the loss is per packet; tcpinterop serve and the same case): 0.08 to 1.1 s in three runs. NewReno
+   repairs one hole a round trip and falls back to the 200 ms timer when a repair is lost; Linux recovers with
+   SACK (RFC 6675), RACK-TLP (RFC 8985) and PRR. Close it in `silica_inet::tcp_conn`, with the case as the
+   check.
+2. The TCP gates of `spec/TESTING.md` section 4 measured against Linux on the same tap path as `net_rtt`, and
+   the server image: its idle memory, and its size on disk (16 MB; `size.sh` skips it until an image of the
+   server alone, without the checks, is built).
+3. The 24 h soak under mixed load: memory and capabilities flat, no request failed (a run on this host,
+   its evidence committed).
+
 ## Exit tests
 
 | M | Name | Components | Exit test |

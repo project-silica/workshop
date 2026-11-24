@@ -93,7 +93,8 @@ component when a working slice calls for it.
 - D18 Package service: content-addressed store, install, garbage collection, repositories, signing
 - D19 Locale, i18n, text encoding, collation (ICU-subset)
 - D20 Shell (typed pipelines over channels) and core utilities
-- D21 Remote management service (authenticated, encrypted; the SSH equivalent); SSH protocol server implemented natively
+- D21 Remote management service (authenticated, encrypted; the SSH equivalent)
+  - Built (M4): `remote`, a session of the machine's own protocols (the service manager's, the log's) over a Noise IK handshake (`silica-crypto`: X25519, ChaCha20-Poly1305, BLAKE2s), owners named by key in the image (`remote.owners`), the host's `silica-remote` client; the service manager's `update` and `revert` with a 10 s trial that puts the last program back (ARCHITECTURE.md section 14, `run_remote`, fuzz target `session`). Owed: the machine key made at first boot and kept on storage under the TPM (M5), narrower grants per owner, several calls in flight, an SSH front for existing tools, a fuzzer of the program loader's segment checks (`silica_proc::spawn`; the ELF header parser is fuzzed in the kernel)
 - D22 Terminal emulator protocol and PTY-equivalent service
 - D23 Machine description: one typed document for base version, packages, settings, users; transactional apply; bootable generations
 - D24 Content-addressed library sharing: store-once on disk, share-once in memory, per-package component list
@@ -143,7 +144,7 @@ component when a working slice calls for it.
 ## G. Network (M4)
 
 - G01 Netstack core: interfaces, routing, neighbor tables, sockets API in IDL
-  - Built (M4, first slice): `netd` on one interface: ARP (16 neighbours, one packet held while its next hop is asked), IPv4 without fragments, ICMP echo, UDP, DHCPv4 client (`silica-inet`, fuzzed). Owed: sockets for programs (the IDL protocol), TCP, IPv6, more than one interface, reassembly, the drop counters readable from the shell, `partitions` serving the partitions of a disk added after boot (it waits for disks at boot through `watch` now, but reads the tables once)
+  - Built (M4, first slice): `netd` on one interface: ARP (16 neighbours, one packet held while its next hop is asked), IPv4 without fragments, ICMP echo, UDP, DHCPv4 client (`silica-inet`, fuzzed). Built since: TCP for programs (`silica.net.Tcp`), SNTP, a program's listeners and connections let go of when it ends. Owed: UDP for programs, IPv6, more than one interface, reassembly, the drop counters readable from the shell, `partitions` serving the partitions of a disk added after boot (it waits for disks at boot through `watch` now, but reads the tables once)
 - G02 IPv4, IPv6, ICMP/ICMPv6, NDP, ARP, fragmentation, PMTU
 - G03 TCP (SACK, window scaling, timestamps, ECN, CUBIC + BBR), UDP, raw sockets by capability
 - G04 DHCPv4, DHCPv6, SLAAC, RA handling
