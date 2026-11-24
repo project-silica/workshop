@@ -66,12 +66,14 @@ Time). A boot-time measurement was tried and is not needed.
 
 Still to build or explain, in order:
 
-1. The performance gaps in `os/bench/open.tsv`. Block reads at depth 1 closed on 2026-11-23 by watched interrupts
-   (ARCHITECTURE.md section 7: 3.64 us against Linux 5.15, p99 4.60 against 5.63), and the network round trip's p99
-   with them. Still open: the network round trip (9.15 us against 10.23, 0.89 of Linux; its line says what is
-   next), boot (18.1 ms against its 13.8 ms ratchet), transmit throughput 2% under its best (the committed tree
-   measures the same: not attributed), cross-processor IPC and the median timer overshoot. Each line there says
-   what it waits for.
+1. The performance gaps in `os/bench/open.tsv`. The session of 2026-11-24 on an idle host (desktop locked) closed
+   the block reads at depth 1 (3.61 us, confined 4.26: their best), the confined round trip's p99 and
+   cross-processor IPC on four pairs. Still open: the network round trip (9.05 us against Linux 10.23, 0.884;
+   target 0.85; its line says what is next), boot (22.3 ms, red: the firmware's exit and the IOMMU set-up, and
+   the owner's decision whether the metric counts them), transmit throughput 2% under its best, one
+   cross-processor pair, the median timer overshoot, the page fault, and, new that session, context switch and
+   same-processor IPC 1.1 to 1.4% under their best with their instruction counts unchanged (the host, not the
+   code). Each line there says what it waits for.
 2. `net_recovery` under `--fast` on 2026-11-23 (the desktop in use) saw one recovery of 656 ms against its 250 ms
    deadline. `netload` now says where a slow recovery's time went (until the next driver took the connection, with
    the tries, and from there to the first completion). Not reproduced since: 30 runs by name, 420 recoveries, the
@@ -117,12 +119,19 @@ every 32 KiB buffer a frame of its own so the stack ran out of capability slots 
 finished stream closed at once losing its last bytes to a reset, and a server that died on a refused accept).
 Still to build, in order:
 
-1. TCP under loss: 16 MiB at 2% loss, 1% duplication and 10% reordering each way over a 2 ms path takes 22 s
-   (0.75 MB/s, `interop` lossy/large). Linux to Linux on the same impairments (two namespaces on a veth, offloads
-   off so the loss is per packet; tcpinterop serve and the same case): 0.08 to 1.1 s in three runs. NewReno
-   repairs one hole a round trip and falls back to the 200 ms timer when a repair is lost; Linux recovers with
-   SACK (RFC 6675), RACK-TLP (RFC 8985) and PRR. Close it in `silica_inet::tcp_conn`, with the case as the
-   check.
+1. TCP under loss. With a scoreboard, RACK loss detection and tail probes, 16 MiB through the guest's
+   HTTP server took 2.928 and 3.386 s in two `interop` lossy/large runs on 2026-11-24, down from 22 s.
+   All 24 cases passed in both runs.
+   Linux to Linux took 0.08 to 1.1 s in three runs with the same impairments (two namespaces on a veth,
+   offloads off, 2% loss, 1% duplication and 10% reordering each way over a 2 ms path). In the host test,
+   all five reordered 4 MiB transfers finished in 0.304 to 0.796 s with zero sender timeouts. On the first seed,
+   164 retransmissions repeated data already on the wire and the window shrank 105 times. A zero RTT sample
+   had disabled reordering tolerance and growing the congestion window on each ACK made growth depend on
+   how the receiver grouped its ACKs. The guest also stalled entering recovery when the reduced window
+   had no room for its first repair. The sender now sends that repair immediately (RFC 6675 section 5).
+   In an instrumented 2.883 s run two 200 ms timeouts still fired while 23 of 24 segments were SACKed, the one
+   retransmission had no answer and the entire 32 KiB send buffer was outstanding. Exercise that case
+   with the real receiver and compare recovery when new data is available to keep the ACKs coming.
 2. The TCP gates of `spec/TESTING.md` section 4 measured against Linux on the same tap path as `net_rtt`, and
    the server image: its idle memory, and its size on disk (16 MB; `size.sh` skips it until an image of the
    server alone, without the checks, is built).
