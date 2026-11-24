@@ -157,6 +157,7 @@ component when a working slice calls for it.
 - G11 Bridge, VLAN, bonding, TAP for VMs (M8)
 - G12 Loopback, local inter-process sockets (channels)
 - G13 Network diagnostics tools (ping, trace, capture)
+  - Owed (M4): every TCP connection as the owner sees it, Linux's `ss -ti` (state, peer, windows, round trip, retransmissions, timeouts, reductions undone: `Connection::info`), from the shell and the remote session. A service has one endpoint and one protocol, and the listing must not be in `silica.net.Tcp` (any program would see every other's peers), so it waits for a service's state being readable by the owner beyond its protocol, which every service needs. Until then the interop suite's lossy runs are read from a capture on the host side of the tap
 - G14 Zero-copy path, RSS, GRO/GSO, checksum offload
 - G15 Time sync hooks (PTP later)
 

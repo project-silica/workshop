@@ -114,28 +114,21 @@ wake-ups on the idle server (`idle`), a remote management session that inspects,
 service, the session's own included (`remote`, fuzz target `session`; ARCHITECTURE.md section 14), the program
 loader's checks fuzzed (`image`), and the interop suite against the host's Linux stack over a tap (`interop`:
 eight cases on a plain path, with a 536-byte MSS and an 8 KiB window, and with 2% loss, 1% duplication and 10%
-reordering each way; it found four defects, fixed: TIME-WAIT holding 64 KiB of buffers a connection for a minute,
+reordering each way, and on the plain path 4 GiB + 16 MiB on one connection across the sequence-number wrap; it
+found four defects, fixed: TIME-WAIT holding 64 KiB of buffers a connection for a minute,
 every 32 KiB buffer a frame of its own so the stack ran out of capability slots at about 240 connections, a
 finished stream closed at once losing its last bytes to a reset, and a server that died on a refused accept).
+TCP under loss (2026-11-24): 16 MiB through the lossy path takes the guest 1.62 to 1.90 s in five runs of six (one
+2.85 s), from 22 s at the start of that work, against Linux to Linux's 4.22 to 5.71 s on the same impairments
+with Linux held to one segment per skb as the guest's frames are (ARCHITECTURE.md, TCP). The 0.08 to 1.1 s once
+recorded for Linux was netem judging Linux's GSO bursts of up to 44 segments whole.
 Still to build, in order:
 
-1. TCP under loss. With a scoreboard, RACK loss detection and tail probes, 16 MiB through the guest's
-   HTTP server took 2.928 and 3.386 s in two `interop` lossy/large runs on 2026-11-24, down from 22 s.
-   All 24 cases passed in both runs.
-   Linux to Linux took 0.08 to 1.1 s in three runs with the same impairments (two namespaces on a veth,
-   offloads off, 2% loss, 1% duplication and 10% reordering each way over a 2 ms path). In the host test,
-   all five reordered 4 MiB transfers finished in 0.304 to 0.796 s with zero sender timeouts. On the first seed,
-   164 retransmissions repeated data already on the wire and the window shrank 105 times. A zero RTT sample
-   had disabled reordering tolerance and growing the congestion window on each ACK made growth depend on
-   how the receiver grouped its ACKs. The guest also stalled entering recovery when the reduced window
-   had no room for its first repair. The sender now sends that repair immediately (RFC 6675 section 5).
-   In an instrumented 2.883 s run two 200 ms timeouts still fired while 23 of 24 segments were SACKed, the one
-   retransmission had no answer and the entire 32 KiB send buffer was outstanding. Exercise that case
-   with the real receiver and compare recovery when new data is available to keep the ACKs coming.
-2. The TCP gates of `spec/TESTING.md` section 4 measured against Linux on the same tap path as `net_rtt`, and
+1. The TCP gates of `spec/TESTING.md` section 4 measured against Linux on the same tap path as `net_rtt`, and
    the server image: its idle memory, and its size on disk (16 MB; `size.sh` skips it until an image of the
-   server alone, without the checks, is built).
-3. The 24 h soak under mixed load: memory and capabilities flat, no request failed (a run on this host,
+   server alone, without the checks, is built). The lossy comparison above becomes a gate there, its Linux
+   number in `bench/reference.tsv`, measured the way ARCHITECTURE.md says.
+2. The 24 h soak under mixed load: memory and capabilities flat, no request failed (a run on this host,
    its evidence committed).
 
 ## Exit tests
