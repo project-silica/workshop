@@ -127,7 +127,12 @@ Still to build, in order:
 1. The TCP gates of `spec/TESTING.md` section 4 measured against Linux on the same tap path as `net_rtt`, and
    the server image: its idle memory, and its size on disk (16 MB; `size.sh` skips it until an image of the
    server alone, without the checks, is built). The lossy comparison above becomes a gate there, its Linux
-   number in `bench/reference.tsv`, measured the way ARCHITECTURE.md says.
+   number in `bench/reference.tsv`, measured the way ARCHITECTURE.md says. Built: the instrument, `tcpbench`
+   (host-tools), measuring any guest's HTTP server from the host (first answer, p50 and p99 at a fixed rate
+   over 64 connections, the virtual processors' time per GiB at a fixed rate); its first use found netd waking
+   a program on every pass, fixed. Still to build: a server group in `bench.sh`, the Linux baseline with
+   IPv4 and TCP and a server answering as httpd does, the first measurement of each, and the guest's cost
+   per GiB taken apart (at 50 MB/s, 2026-11-24: VM exits, the idle watch, netd's copies).
 2. The 24 h soak under mixed load: memory and capabilities flat, no request failed (a run on this host,
    its evidence committed).
 
