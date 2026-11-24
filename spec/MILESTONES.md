@@ -85,11 +85,13 @@ Still to build or explain, in order:
      changed every seed's meaning. Fixed on 2026-11-24 (kernel: a fixed SYSCALL_SPACE, the corpus carried
      across, 1764 edges); inet's `frames` was already above its new floor.
    - aarch64 `smp_stress`, `smp_revoke`, `smp_timeouts` and systest's `four_pairs_on_eight_processors`
-     timed out. Not hung: the processors' PCs show the test running (one in user mode spinning by design,
-     two in the IPC path); 8 emulated processors on the runner's 4 cores. The harness kills at 60 s, before
-     the guest's own 120 s deadline can say how far it got. Next: a manifest option naming a test's own
-     deadline, the harness's limit above it; and qemu.sh's PC sampling, which asks for `$pc`, a register
-     QEMU's monitor does not know on aarch64.
+     timed out while still running (the processors' PCs: one spinning in user mode by design, two in the
+     IPC path), 8 emulated processors on the runner's 4 slow cores. Fixed on 2026-11-24 by judging
+     progress instead of a total time: the tests count it and say it every 10 s, systest's clients signal
+     it, and the harness ends a guest after a minute of silence (`qemu.sh --quiet`). With 8 processors on
+     2 host cores here, systest passes in 463 s and smp_stress passes. The idle watch was suspected of
+     starving such machines and is not: off and on gave the same times on 4 host cores. Verify on the
+     hosted runner.
    - The fast tier took 95 s on the runner (limit 60 s; 160 s of work on 4 processors; about 50 s here on
      24). Still needs attribution: most of it is builds, which the evidence does not time per piece.
    Without a dedicated
