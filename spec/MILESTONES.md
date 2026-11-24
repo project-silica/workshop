@@ -130,9 +130,20 @@ Still to build, in order:
    number in `bench/reference.tsv`, measured the way ARCHITECTURE.md says. Built: the instrument, `tcpbench`
    (host-tools), measuring any guest's HTTP server from the host (first answer, p50 and p99 at a fixed rate
    over 64 connections, the virtual processors' time per GiB at a fixed rate); its first use found netd waking
-   a program on every pass, fixed. Still to build: a server group in `bench.sh`, the Linux baseline with
-   IPv4 and TCP and a server answering as httpd does, the first measurement of each, and the guest's cost
-   per GiB taken apart (at 50 MB/s, 2026-11-24: VM exits, the idle watch, netd's copies).
+   a program on every pass, fixed. The Linux baseline serves the same answers (`build_linux <log> server`,
+   IPv4 and TCP in its config). First comparison, untimed and unpinned, 2 processors, the same tap
+   (2026-11-24): HTTP p50 101.5 us Linux, 106 to 110 Silica; p99 176.6 and 187 to 252; the guest's
+   processors per GiB at a fixed 200 MB/s 874 ms and 4,496 ms (5.1 times), at 50 MB/s 1,070 and 9,845 (9.2
+   times). Still to build, in order: (a) the device's offloads used (G14): Linux's virtio-net takes QEMU's
+   segmentation and checksum offloads, one descriptor and at most one doorbell for 44 segments, where
+   Silica's driver and netd send each 1514-byte frame and checksum it in software; `silica.net.Device`
+   must say what an interface offloads and carry a frame's segmentation and checksum requests, TCP emit
+   segments larger than the MSS for an interface that cuts them, and e1000e use its TSO context descriptors;
+   (b) the rest of the cost per GiB, by a profile at 50 MB/s: VM exits (the virtual processors' threads
+   spent about 3.5 times the guest's own cycles: doorbells, halts, IPIs), the idle watch before a halt
+   (27k of 42k kernel samples), netd's copies (stream to scratch to the send ring to the frame); (c) a
+   server group in `bench.sh` booting each server image, timed and pinned, and the Linux numbers measured
+   once (`--linux`).
 2. The 24 h soak under mixed load: memory and capabilities flat, no request failed (a run on this host,
    its evidence committed).
 
