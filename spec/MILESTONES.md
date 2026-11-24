@@ -76,14 +76,23 @@ Still to build or explain, in order:
    deadline. `netload` now says where a slow recovery's time went (until the next driver took the connection, with
    the tries, and from there to the first completion). Not reproduced since: 30 runs by name, 420 recoveries, the
    slowest 6 ms, 10 of the runs beside 16 busy processes. Waits for its next occurrence, which explains itself.
-3. Hosted deep run [45176778475](https://github.com/project-silica/os/actions/runs/45176778475/attempts/1)
-   reported 75 failures. In the ARM firmware from the runner (2025.11-3ubuntu7.3), the first instruction
-   translation fault recurred at the exception vector before the loader ran. With 2026.05-2ubuntu3 the same
-   scheduler guest passed on one and four processors locally, including four on Ubuntu's QEMU 10.2.1.
-   The counter built for its plugin API 5 counted 14,807,496 kernel instructions in one null-syscall
-   guest through BENCH DONE. Nightly now selects that firmware, installs cargo-fuzz and the counter's
-   headers, and archives the individual fuzz build logs, benchmark serial output and check durations. Verify on the hosted
-   runner. The 99 s fast-tier budget check (limit 60 s) still needs attribution. Without a dedicated
+3. The hosted deep run. Run [45176778475](https://github.com/project-silica/os/actions/runs/45176778475/attempts/1)
+   reported 75 failures: the runner's ARM firmware (2025.11-3ubuntu7.3) faulted before the loader, and
+   nightly now selects 2026.05-2ubuntu3, installs cargo-fuzz and the instruction counter's headers, and
+   archives fuzz build logs, benchmark serial output and check durations. The next,
+   [45216348057](https://github.com/project-silica/os/actions/runs/45216348057) (2026-11-23), had 8:
+   - The syscall fuzzer's seeds under their floor (1245 edges of 1347; 1259 here): each new syscall had
+     changed every seed's meaning. Fixed on 2026-11-24 (kernel: a fixed SYSCALL_SPACE, the corpus carried
+     across, 1764 edges); inet's `frames` was already above its new floor.
+   - aarch64 `smp_stress`, `smp_revoke`, `smp_timeouts` and systest's `four_pairs_on_eight_processors`
+     timed out. Not hung: the processors' PCs show the test running (one in user mode spinning by design,
+     two in the IPC path); 8 emulated processors on the runner's 4 cores. The harness kills at 60 s, before
+     the guest's own 120 s deadline can say how far it got. Next: a manifest option naming a test's own
+     deadline, the harness's limit above it; and qemu.sh's PC sampling, which asks for `$pc`, a register
+     QEMU's monitor does not know on aarch64.
+   - The fast tier took 95 s on the runner (limit 60 s; 160 s of work on 4 processors; about 50 s here on
+     24). Still needs attribution: most of it is builds, which the evidence does not time per piece.
+   Without a dedicated
    TAP echo processor the benchmark guest ran netcheck without a NIC (reproduced exit 17). The harness
    now attaches a user-mode NIC on that host: ARP and ping pass and the guest reports BENCH DONE.
    The TAP-only network metrics still require their echo. The separate hosted typeahead timeout is

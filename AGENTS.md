@@ -120,7 +120,9 @@ Build your own eyes early. You can observe Silica only through the serial consol
 
 Keep `unsafe` inside the modules listed in `spec/UNSAFE_MODULES.md`, with the invariant stated at each use.
 
-Edit files with the harness's own Edit and Write tools, so every change is tracked and shown to the owner as it is made. Use a script (Python, sed, awk) only for an edit those tools cannot reasonably make, such as one mechanical change across many files. Move changes between branches and worktrees with git: commit, merge, cherry-pick, rebase.
+Edit files with the harness's own Edit and Write tools, so every change is tracked and shown to the owner as it is made. Use a script (sed, awk) only for an edit those tools cannot reasonably make, such as one mechanical change across many files. Move changes between branches and worktrees with git: commit, merge, cherry-pick, rebase.
+
+Silica is a Rust project, with shell for the tools that drive builds and emulators. There is no Python in it or in the work on it: not in the system, its tests or its tools, and not as a quick way to edit a file, compute a value or check a result. A program a test needs on the host is a Rust program in `os/host-tools`. The `no_python` check in `--fast` fails on any Python in any repository.
 
 </working_method>
 

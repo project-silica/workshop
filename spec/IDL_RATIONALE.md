@@ -143,7 +143,7 @@ nothing to agree with.
 1. `spec/IDL.md` section 3.1 lists normative byte vectors for `sample.Echo`. They cover the header, both flag
    values, statuses `ok`, `error` and `unknown_method`, every integer width, signed values, `bool`, enums,
    `string`, `bytes`, nested field lists, `array`, both `option` states and capability indices. They were written
-   from the prose of section 3 by an independent script (Python `struct`, little-endian), never by
+   from the prose of section 3 by an independent encoder (little-endian, from the prose alone), never by
    `silica-idl-rt`.
 2. `idlc/tests/wire_vectors.rs::known_answer_vectors` encodes each value with the generated code and compares the
    bytes with section 3.1. It also decodes each vector, with the stated capability count, and compares the values.
