@@ -92,8 +92,11 @@ Still to build or explain, in order:
      2 host cores here, systest passes in 463 s and smp_stress passes. The idle watch was suspected of
      starving such machines and is not: off and on gave the same times on 4 host cores. Verify on the
      hosted runner.
-   - The fast tier took 95 s on the runner (limit 60 s; 160 s of work on 4 processors; about 50 s here on
-     24). Still needs attribution: most of it is builds, which the evidence does not time per piece.
+   - The fast tier took 95 s on the runner (limit 60 s; 160 s of work on 4 processors). Attributed here by
+     each check's start and end (2026-11-24): of 51 s, 12 s was the console check typing (a process and a
+     60 ms pause per key) and about 3 s finding objcopy twice per program in every build; both gone, 38 s
+     now. The largest part left is the three recovery checks, 19 s alone by design. Measure the runner
+     again on the next nightly.
    Without a dedicated
    TAP echo processor the benchmark guest ran netcheck without a NIC (reproduced exit 17). The harness
    now attaches a user-mode NIC on that host: ARP and ping pass and the guest reports BENCH DONE.
