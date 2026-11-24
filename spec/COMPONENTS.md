@@ -159,6 +159,7 @@ component when a working slice calls for it.
 - G13 Network diagnostics tools (ping, trace, capture)
   - Owed (M4): every TCP connection as the owner sees it, Linux's `ss -ti` (state, peer, windows, round trip, retransmissions, timeouts, reductions undone: `Connection::info`), from the shell and the remote session. A service has one endpoint and one protocol, and the listing must not be in `silica.net.Tcp` (any program would see every other's peers), so it waits for a service's state being readable by the owner beyond its protocol, which every service needs. Until then the interop suite's lossy runs are read from a capture on the host side of the tap
 - G14 Zero-copy path, RSS, GRO/GSO, checksum offload
+  - Built (M4): transmit checksum and TCP over IPv4 segmentation offloads, in the class protocol, virtio-net and netd. Owed: e1000e's (M4), receive checksum and coalescing (GRO), more than one queue pair (RSS), sending from a program's memory in place
 - G15 Time sync hooks (PTP later)
 
 ## H. Graphics and desktop (M6)
