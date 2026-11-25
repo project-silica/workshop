@@ -69,6 +69,11 @@ The log reader preserves byte offsets through malformed UTF-8 and carries a
 valid character across a reply boundary whole. Filtering terminal control
 characters on the console and in remote output remains open.
 
+The partition service reads GPT entry arrays in transfers that fit both
+the disk's advertised maximum and the registered buffer. On x86_64,
+`partitions_small_transfer` finds the system partition on a QEMU NVMe
+namespace with 512-byte blocks, an 8 KiB limit and a 16 KiB entry array.
+
 The shell splits long command output at UTF-8 character boundaries. The
 terminal client test delivers 11,976 bytes through the generated wire codec
 and compares the complete text. The x86_64 console guest covers the shell's
