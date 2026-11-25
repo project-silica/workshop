@@ -136,6 +136,11 @@ Still to build or explain, in order:
    consistent with a lost wakeup at console startup:
    the console now arms its empty input ring before the keyboard or port can publish buffered input.
 
+TCP keeps a connection open while its receiver answers zero-window probes.
+The transport test holds a receiver full for an hour of protocol time, then
+reads all 40,000 queued bytes. A second test drops the replies and observes
+a timeout. An idle-host TCP CPU measurement after this change is still owed.
+
 M4 is built ahead while M3's first item waits for timed benchmark sessions on an idle desktop and its third for
 the hosted run. Read against M4's exit test on 2026-11-24. Built: DHCP, SNTP, the wall clock from the hardware
 clock, TCP for programs and 10,000 checked HTTP answers (`http_load`), the same over e1000e, the stack killed
