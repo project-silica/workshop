@@ -203,6 +203,11 @@ How skew is tolerated, by construction:
 
 ## 5. What the caller observes (transport contract)
 
+The native transport puts the byte length in the IPC label and sends that length rounded up
+to whole words. The sender zeroes the unused bytes of the final word. Before copying bytes,
+the receiver checks the label against its destination capacity, the 4000-byte limit, and the
+word count delivered by the kernel. A mismatch produces `malformed_request` or `malformed_reply`.
+
 Generated client calls return either the reply, the method's declared error, or a transport error. The transport
 (libsys and the IDL runtime) reports, uniformly for every protocol:
 

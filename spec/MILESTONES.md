@@ -44,6 +44,11 @@ reached from a virtual machine's host through it (`console_port`); the kernel's 
 its panic, on the framebuffer (C30, `panic_screen`); the IDL client's one in-place message buffer (A13; why not the
 IPC buffer itself: IDL_RATIONALE.md).
 
+The capability proof obligation from M2 remains partly open. Kani verifies a single copy
+from a populated slot into an empty one. The exhaustive revoke test covers unmapped frames
+and empty endpoints on bounded lists. A proof covering operation sequences and the other
+object destruction paths is still owed.
+
 The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
 archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
 with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in

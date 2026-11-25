@@ -28,7 +28,8 @@ Ask these of every component before calling it finished. They are what "professi
 - **Results repeat.** Builds are reproducible, tests are deterministic, and a performance claim comes with the
   command that reproduces it.
 
-`tools/repro.sh --system` builds x86_64 twice in different directories with independent caches. It compares
+`tools/repro.sh --system` builds x86_64 twice in different directories with independent caches. The first
+build uses C collation and the second uses a language locale when the host provides one. It compares
 the kernel ELF, UEFI loader, kernel test disk and the bootable system disk, including the service and driver
 manifests and their programs. The full tier also plants a clock-derived disk GUID in a disposable checkout
 and requires the checker to identify the differing disk and keep both copies for inspection.
@@ -108,7 +109,7 @@ An OS has no single reference implementation, so each layer gets its own.
 
 | Layer | Oracle |
 | --- | --- |
-| Kernel objects, caps, IPC | Executable reference model in plain Rust (simple, obviously-correct, slow). Proptest drives random operation sequences against model and real implementation and compares state. Kani proves no-forge and revoke-completeness on bounded configurations. |
+| Kernel objects, caps, IPC | A plain Rust reference model compares capability and memory operations with the kernel after each step of a random sequence. Kani checks a single capability copy. The host suite exhausts the frame and endpoint revoke cases defined in `kernel-core/src/exhaustive.rs`. The outstanding proof obligations are in MILESTONES.md. |
 | Scheduler | Deterministic simulation on host: synthetic workloads, assert fairness bounds, deadline admission, no starvation, budget donation across IPC. |
 | Memory management | Model-based tests plus Miri; in-OS stress with poisoned freed pages. |
 | Concurrency | loom on every lock-free structure and on the IPC fast path. A model has every place the code can take an event and drop it (an interrupt window in a loop), not only the place it waits for one: the idle watch's first model lacked its window and passed a protocol that lost wake-ups. A new model is run once against the mistake it exists to catch. |
