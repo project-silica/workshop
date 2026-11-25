@@ -79,6 +79,11 @@ terminal client test delivers 11,976 bytes through the generated wire codec
 and compares the complete text. The x86_64 console guest covers the shell's
 log, service and device commands on the keyboard and display.
 
+Terminal protocol version 2 reports a busy reader separately from an empty
+input line. In `svcload` the shell keeps its pending read when a second
+program asks for input. In `console_port` an empty line typed before an
+ordinary command gets its own shell prompt.
+
 The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
 archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
 with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in
