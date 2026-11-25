@@ -49,6 +49,21 @@ from a populated slot into an empty one. The exhaustive revoke test covers unmap
 and empty endpoints on bounded lists. A proof covering operation sequences and the other
 object destruction paths is still owed.
 
+A failed spawn returns outright grants to their original parent slots before
+destroying the child's capability space. The `failed_spawn_returns_grants`
+guest test checks the identity, rights and derivation depth of both an endpoint
+and an Untyped after a later grant fails.
+
+The wall-clock reader makes at most two attempts to sample its time page. If a
+writer exits mid-update, readers report unknown time until the next completed
+write (`systest` runs the writer and reader as separate programs). The SNTP
+decoder rejects timestamps before the Unix epoch. Authentication of the time
+source and limits on the clock changes it may request remain open.
+
+The log reader preserves byte offsets through malformed UTF-8 and carries a
+valid character across a reply boundary whole. Filtering terminal control
+characters on the console and in remote output remains open.
+
 The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
 archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
 with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in
