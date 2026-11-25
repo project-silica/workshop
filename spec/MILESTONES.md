@@ -84,6 +84,12 @@ input line. In `svcload` the shell keeps its pending read when a second
 program asks for input. In `console_port` an empty line typed before an
 ordinary command gets its own shell prompt.
 
+The fast tier compares the current system IDL with the protocol definitions
+in both the workshop release pin and the OS integration pin. All 14
+published protocols passed against both pins after the terminal change.
+The gate's regression removes a protocol and changes a shipped method's
+ordinal in separate trials. Both are rejected.
+
 The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
 archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
 with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in

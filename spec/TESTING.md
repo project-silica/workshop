@@ -34,6 +34,12 @@ the kernel ELF, UEFI loader, kernel test disk and the bootable system disk, incl
 manifests and their programs. The full tier also plants a clock-derived disk GUID in a disposable checkout
 and requires the checker to identify the differing disk and keep both copies for inspection.
 
+`tools/check-protocols.sh` checks every published protocol under
+`idl/protocols/silica` against the definitions pinned by the workshop and
+the OS integration manifest. It runs in the fast tier for IDL and OS changes.
+The full-tier regression changes a shipped method ordinal and removes a
+shipped protocol in a disposable checkout. Each must fail the check.
+
 Tests verify correctness; they do not define the solution. Code that passes by special-casing the test's inputs is
 wrong, and a test that is itself wrong is fixed and the fix explained.
 
