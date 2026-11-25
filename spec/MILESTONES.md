@@ -69,6 +69,11 @@ The log reader preserves byte offsets through malformed UTF-8 and carries a
 valid character across a reply boundary whole. Filtering terminal control
 characters on the console and in remote output remains open.
 
+The shell splits long command output at UTF-8 character boundaries. The
+terminal client test delivers 11,976 bytes through the generated wire codec
+and compares the complete text. The x86_64 console guest covers the shell's
+log, service and device commands on the keyboard and display.
+
 The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
 archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
 with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in
