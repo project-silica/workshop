@@ -54,6 +54,11 @@ destroying the child's capability space. The `failed_spawn_returns_grants`
 guest test checks the identity, rights and derivation depth of both an endpoint
 and an Untyped after a later grant fails.
 
+After boot, a successful provider start signals every running consumer of
+that protocol. The `svcload` guest stops and starts partitions as a client,
+checks its notification, and checks that starting it twice produces no
+second notification.
+
 The wall-clock reader makes at most two attempts to sample its time page. If a
 writer exits mid-update, readers report unknown time until the next completed
 write (`systest` runs the writer and reader as separate programs). The SNTP
