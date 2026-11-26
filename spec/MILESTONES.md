@@ -59,6 +59,10 @@ M3:
    x86_64 only: its device is the 16550); netd as the first caller of `mem::watch_low`.
 9. With M5's storage: updates land in the inactive image and switch at the next boot with rollback (until then
     `update` says it lasts until a reboot), and logd keeps a bounded log on disk.
+10. `--fast --fresh` takes 91 s against M0's 60 s (`fast_budget`): 18 s of builds and lint, 27 s of recovery tests
+    run alone, then 48 guest boots, eight at a time, many now waiting out the time limits their attacks test (a hung
+    provider's probe, replayed and silent sessions, SNTP's agreeing answers). Which of them run only in `--full`,
+    or how they get shorter, is the owner's to decide.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
@@ -74,6 +78,10 @@ the server image):
 5. Authenticated time (NTS); a DHCP-supplied server can still set the first clock within the sanity bounds.
    Duplicate-address probing (RFC 5227) before using a lease.
 6. TCP keepalive for idle connections.
+7. The stack's peers reset when its program is replaced: an update or revert gives the new netd an empty kept page,
+   so no stack resets the old connections and each peer waits out its own limit (the owner's remote tool, 120 s).
+   netd resetting them as it ends is on branch `netd-ends-wip` (system); the service manager must end it in order
+   inside `update` without dropping that call's caller (park it: a receive while an answer is owed drops it).
 
 ## Exit tests
 
