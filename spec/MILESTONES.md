@@ -27,11 +27,10 @@ M3 (M4 is built ahead of it; both lists are open). What is built, and the eviden
 M3:
 
 1. The performance gaps in `os/bench/open.tsv`, each with what it waits for: the network round trip, boot (the
-   firmware's exit and the emulated IOMMU set-up, and the owner's decision whether the metric counts them), transmit
+   firmware's exit and the emulated IOMMU set-up, and the decision whether the metric counts them), transmit
    throughput, one cross-processor pair, the timer's median overshoot, the page fault, context switch and
-   same-processor IPC, and the instruction-count costs of the run-queue tree, scheduling contexts and the lock share
-   (charged to the caller's context since this list last changed: the page fault 1845 to 1854 instructions).
-   Timed runs need an idle host.
+   same-processor IPC. Timed runs need an idle host. (The instruction-count costs of the run-queue tree, scheduling
+   contexts and the lock share are won back: every counted path is below its old best.)
 2. Timed runs owed for paths changed without one: netd's segment lookup and transmit pass, the drivers' deadline
    lookup (`blk_read4k_qd1`, `net_rtt`), the heap.
 3. `net_recovery` once took 656 ms against its 250 ms deadline under `--fast`; not reproduced in 420 recoveries.
