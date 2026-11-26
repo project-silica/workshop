@@ -161,6 +161,10 @@ security policy.
   whose maker ended are reclaimed. Text shown on a terminal goes through `silica_rt::text::printable`.
 - **Providers that restart:** a service hears on its events notification when a provider it needs started again. A
   service that `keeps` has a page kept across restarts and replaced with an empty one when its program changes.
+  A provider that stops answering is ended and started again: a client whose time-limited call to it expired tells
+  the service manager, which probes it once (every runtime answers the probe from its request loop); nothing polls.
+  Services build with overflow checks in release, as the kernel does: arithmetic that would wrap stops the program,
+  and its supervisor starts it again.
 - **Console and power:** the kernel's console never waits for the port (a ring fed as the UART takes it; a piece
   that does not fit is dropped and said). The power capability turns the machine off or resets it (PSCI; ACPI S5
   and the reset register). The QEMU debug-exit port is written only when the command line names a harness
