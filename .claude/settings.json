@@ -11,17 +11,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "n=$(\"$CLAUDE_PROJECT_DIR\"/tools/landed.sh 2>/dev/null | grep -c '^UNLANDED'); [ \"$n\" = 0 ] || printf '{\"systemMessage\":\"%s things are not on main yet: tools/landed.sh lists them\"}\\n' \"$n\"",
-            "timeout": 20
-          }
-        ]
-      }
     ]
   }
 }

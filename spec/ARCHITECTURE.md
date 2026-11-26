@@ -315,13 +315,14 @@ a packet filter, WireGuard, Wi-Fi.
   under 1000 s. A lease that changes ends the connections on the old address.
 - **TCP for programs** (`silica.net.Tcp`): a program lends memory once and names a block of it per connection; bytes
   travel in two byte streams in that block. What a program may do is in its capability, from its declaration: the
-  one port it may listen on (`listen=<port>`, `listen_given` names none) and whether it may connect out (`connect`);
+  one port it may listen on (`listen=<port>`, `listen_granted` names none) and whether it may connect out (`connect`);
   a port is the owner's to give, never the first claimant's, one declaration's alone (the service manager refuses a
   list that gives it twice), and anything else is refused `not_granted`. The stack never waits on a program;
   connections belong to the program that made them until TCP is done with them, a closed one included, and end when
   it does. A program has as many connections as the memory it lent pays for (one per 64 KiB, kept for it out of the
-  256 the stack's own memory holds); a listener's unfinished handshakes are its own, and its full backlog evicts its
-  own oldest; TIME-WAIT holds a small record restarted only by the peer's own
+  256 the stack's own memory holds), and what waits on its listener takes places among them: there is no backlog
+  beside that bound. A listener's unfinished handshakes are its own, and with its program's room full a new one
+  evicts its own oldest, reset; TIME-WAIT holds a small record restarted only by the peer's own
   FIN; FIN-WAIT-2 ends when nobody holds the connection and the peer is silent; timestamps do not reveal uptime; a
   receiver that answers zero-window probes is kept while its program holds the connection, and given up on after as
   many probes as a segment is sent again once it does not. Transmit rotates between connections, connections with
