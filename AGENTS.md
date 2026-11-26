@@ -11,8 +11,14 @@ What it must be, in order of what wins a conflict:
 
 1. **Secure and stable**: nothing less trusted can crash, starve or deceive something more trusted, and committed
    data is never lost or silently corrupted.
-2. **Small, with no inherited abstraction**: no `fork`, `ioctl`, signals, TTYs, uid 0, global namespace or ring-0
-   drivers. Each mechanism has a present reason, and a new need is met with a mechanism that exists before a new one.
+2. **Small, and derived rather than inherited**: every mechanism is designed from Silica's own model (what authority
+   it carries, who holds it, how a holder learns what happened), not adopted because a conventional OS has it.
+   Conventional systems fill those gaps with ambient state, global strings and names, well-known numbers, clocks
+   standing in for knowledge, and supervisors that guess; Silica has capabilities and a kernel that reports facts, and
+   uses them. `fork`, `ioctl`, signals, TTYs, uid 0 and ring-0 drivers are examples of what this rules out, not the
+   list: a design that resembles a Unix or Linux mechanism carries the burden of proof, and its commit says why the
+   capability-native design loses. Each mechanism has a present reason, and a new need is met with a mechanism that
+   exists before a new one.
 3. **Fast**: as fast as the hardware allows. Each path is tuned against Silica's own best until a profile shows
    that what remains is work the hardware or a guarantee requires; every improvement becomes the new ratchet.
    Linux's numbers in `os/bench/reference.tsv` are a floor to stay above, not a finish line.
@@ -27,8 +33,16 @@ Each is why a class of the 2026-11-24 audit's defects existed; designing to them
   nothing more; a new method says which scope it needs. (Every holder could once replace any service's program.)
 - **Everything a less-trusted party can consume is bounded per holder and given back when the holder goes**: slots,
   connections, windows, queue entries, memory, processor time, time holding locks. (Tables filled by one client.)
-- **Nothing waits forever on something it trusts less.** Calls into drivers and peers have time limits; a peer that
-  ends is noticed. (A hung driver held its service and every client of it.)
+- **Knowledge comes from the kernel, not the clock.** Within the machine, a holder learns that a peer ended,
+  faulted or owes an answer from the kernel (exit messages, notices, parked calls), never by inferring it from
+  elapsed time. Nothing waits forever on something it trusts less, so a wait on a live, silent peer is bounded; that
+  bound is a backstop whose expiry is the peer's failure, never the normal path. Only a peer no kernel can speak for
+  (a host on the network) is judged by time, with the bound budgeted per peer like any resource. (A hung driver held
+  its service and every client of it; later, every shutdown waited 2 s on a flush two services each waited on.)
+- **Authority and configuration arrive as capabilities**, given to the one component they concern: never a string
+  every component reads, a well-known number anyone may claim, or a hook a production image obeys. The kernel's own
+  settings are the owner's boot configuration; test hooks exist only in test images. (One boot string configured
+  every service, and drivers obeyed its fault-injection hooks on any machine.)
 - **Less-trusted input never changes what a more-trusted part believes without being checked**: time, routes,
   neighbours, leases, versions. (One forged packet redirected traffic for the router.)
 - **The first holder keeps what it holds.** A second claimant is refused, never silently put in its place.

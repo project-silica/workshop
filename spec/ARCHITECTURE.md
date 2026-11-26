@@ -12,8 +12,12 @@ Every component keeps these. A design that seems to need an exception is a desig
 2. **Every resource a less-trusted party can consume is bounded per holder and reclaimed when the holder goes**
    (slots, connections, windows, queue entries, rings, memory, processor time, time holding locks), so no client
    can exhaust a service for the others.
-3. **Nothing waits forever on something it trusts less.** Calls into drivers and peers carry time limits and a dead
-   peer is noticed, so one hung component cannot hang the ones above it.
+3. **Knowledge comes from the kernel, not the clock.** Within the machine, a holder learns that a peer ended,
+   faulted or owes an answer from the kernel (exit messages, notices, parked calls), never by inferring it from
+   elapsed time, because a guess is wrong both ways: it kills the slow and waits on the dead. Nothing waits forever
+   on something it trusts less; the bound on a wait for a live, silent peer is a backstop whose expiry is that peer's
+   failure, never the normal path. Only a peer no kernel can speak for (a host on the network) is judged by time,
+   its bound budgeted per peer like any resource.
 4. **Less-trusted input never changes what a more-trusted part believes unchecked** (time, routes, neighbours,
    leases, versions, device state), because the belief outlives the input.
 5. **The first holder keeps what it holds.** A second claimant is refused, never silently substituted, so a holder
@@ -26,7 +30,11 @@ Every component keeps these. A design that seems to need an exception is a desig
    than it holds.
 9. **A cost an adversary can trigger is a security bug, not a performance limit**, because the attacker chooses
    the workload.
-10. **A guarantee beats a number.** When a guarantee costs speed, record the cost with its reason
+10. **Authority and configuration arrive as capabilities**, given to the one component they concern, never as a
+    string every component reads, a well-known number anyone may claim or a hook a production image obeys, because
+    what everyone can read or claim is ambient authority. The kernel's own settings are the owner's boot
+    configuration; test hooks exist only in test images.
+11. **A guarantee beats a number.** When a guarantee costs speed, record the cost with its reason
     (`os/bench/open.tsv`) and win it back in the design; never trade the guarantee.
 
 Performance aims at each path's own best, not at a margin over another system: a path is tuned until a profile shows
