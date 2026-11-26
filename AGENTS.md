@@ -41,8 +41,8 @@ Each is why a class of the 2026-11-24 audit's defects existed; designing to them
   its service and every client of it; later, every shutdown waited 2 s on a flush two services each waited on.)
 - **Authority and configuration arrive as capabilities**, given to the one component they concern: never a string
   every component reads, a well-known number anyone may claim, or a hook a production image obeys. The kernel's own
-  settings are the owner's boot configuration; test hooks exist only in test images. (One boot string configured
-  every service, and drivers obeyed its fault-injection hooks on any machine.)
+  settings are the owner's boot configuration; test hooks exist only in test images. (Any program could listen on
+  another's port first, and production drivers obeyed fault-injection hooks from the boot string.)
 - **Less-trusted input never changes what a more-trusted part believes without being checked**: time, routes,
   neighbours, leases, versions. (One forged packet redirected traffic for the router.)
 - **The first holder keeps what it holds.** A second claimant is refused, never silently put in its place.
