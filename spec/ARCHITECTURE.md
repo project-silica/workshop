@@ -164,7 +164,8 @@ security policy.
   A provider that stops answering is ended and started again: a client whose time-limited call to it expired tells
   the service manager, which probes it once (every runtime answers the probe from its request loop); nothing polls.
   Services build with overflow checks in release, as the kernel does: arithmetic that would wrap stops the program,
-  and its supervisor starts it again.
+  and its supervisor starts it again. A program is told when its free memory falls below a mark it set
+  (`mem::watch_low`, looked at on allocation and release, never on a timer) and can give back its heap's spare.
 - **Console and power:** the kernel's console never waits for the port (a ring fed as the UART takes it; a piece
   that does not fit is dropped and said). The power capability turns the machine off or resets it (PSCI; ACPI S5
   and the reset register). The QEMU debug-exit port is written only when the command line names a harness
@@ -195,7 +196,8 @@ security policy.
   say no device is confined. An unresponsive unit stops the machine naming it. Without an IOMMU (`iommu=off`)
   `DeviceAttach` is `Unsupported`, the boot says so, and starting a DMA-capable driver is trusting it (`unconfined`).
 - **Speculation:** an address space can be isolated (`ASPACE_ISOLATED`): switches into and out of it flush the
-  predictors and set STIBP and SSBD. Meltdown-affected processors are refused unless the owner says `meltdown=accept`.
+  predictors and set STIBP and SSBD. A service declared `secrets` runs in one (`remote`, `entropy`); `Inspect`
+  reports it. Meltdown-affected processors are refused unless the owner says `meltdown=accept`.
 - **Inspection:** `Inspect` (read right) reads slots, threads, interrupt lines and parked calls; the owner's tools use
   the owner's capabilities, and there is no kernel debugger with authority of its own.
 - **HAL:** `kernel/arch/{x86_64,aarch64,riscv64}` behind one trait; aarch64 boots the same tests.
