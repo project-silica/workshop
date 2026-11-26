@@ -78,6 +78,10 @@ M3:
     5 s; `connect` before a lease is answered `no_address` and polled (park it until the lease, bounded per
     program); netcheck and netload wait for a device with `yield_now` (`watch`); accept is a polling call (blocks
     posted ahead and filled by the stack).
+12. Seen once, in the `--fast` run inside a `--full` (2026-11-26): the `remote` test's owner stopped mid-upload of a
+    program after 5 calls and its session closed on its 6 s idle bound; not seen in the five runs after. Owed: what
+    held the owner's bytes (the host's sends, netd's receive window, virtio-net's receive queue), from a run that
+    keeps netd's counters with the serial log.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
