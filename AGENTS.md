@@ -96,5 +96,3 @@ in the commit that closes or finds an item. Add no other tracking files.
 - Edit files with the Edit and Write tools; a script only for one mechanical change across many files.
 - `/tmp` is 8 GB of RAM: put scratch, logs and checkouts under `target/`.
 - Each checkout needs its own `CARGO_TARGET_DIR`: a shared one serves one tree's build to the other.
-- Subagents: for independent work in its own worktree, and for a fresh review of any change at a trust
-  boundary (give the reviewer the diff and these invariants, not your reasoning; ask it to skip style).
