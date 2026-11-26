@@ -234,6 +234,7 @@ Generated client calls return either the reply, the method's declared error, or 
 | `unknown_method` | the provider does not implement the method (older provider) |
 | `malformed_request` | the provider rejected the request as malformed |
 | `reply_too_large` | the provider's reply exceeded the limits of section 3; it sent status 4 instead |
+| `unknown_field` | the request carried a field the provider's version does not know (an older provider); nothing was done |
 
 After `peer_gone` or `cancelled` the request may or may not have taken effect. Each method's doc comment states
 whether retrying is safe. Each protocol's doc comments state what the caller observes in the `revoked`,
@@ -255,5 +256,5 @@ whether retrying is safe. Each protocol's doc comments state what the caller obs
   (capabilities are not `Clone` and move into `Transport::call`; `dispatch` cannot fail), and by
   `spec/IDL_RATIONALE.md` section 6 (encoding takes values by value, decoding takes the
   capability list by value, and generation rejects an `array` whose element type can carry a capability).
-- How generated bindings reach other repositories (generated at build time or checked in) is decided when the
-  first consumer (D03) exists, before M2.
+- Bindings are generated at build time by each consumer (`system/protocols/build.rs` runs `silica-idlc` over
+  `idl/protocols`), never checked in.
