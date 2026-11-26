@@ -9,7 +9,9 @@ What it must be, in order of what wins a conflict:
    data is never lost or silently corrupted.
 2. **Small, with no inherited abstraction**: no `fork`, `ioctl`, signals, TTYs, uid 0, global namespace or ring-0
    drivers. Each mechanism has a present reason, and a new need is met with a mechanism that exists before a new one.
-3. **Fast**: 15% better than Linux on every metric in `os/bench/reference.tsv`, measured on the same machine.
+3. **Fast**: as fast as the hardware allows. Each path is tuned against Silica's own best until a profile shows
+   that what remains is work the hardware or a guarantee requires; every improvement becomes the new ratchet.
+   Linux's numbers in `os/bench/reference.tsv` are a floor to stay above, not a finish line.
 4. **Buildable from its docs**: a driver or an app can be written from the published interfaces alone.
 
 ## Invariants
@@ -44,7 +46,8 @@ Each is why a class of the 2026-11-24 audit's defects existed; designing to them
 - Every change runs its own test while you work, `--fast` before a commit, `--full` before a pin.
 - A benchmark answers a question you state first. Instruction counts (`bench.sh --only insns`) are exact and
   disturb nobody: use them first on any kernel path. Timed runs take over the machine: not while someone is at
-  its desktop. Linux's numbers are final; Silica's are kept by their own ratchet.
+  its desktop. A performance change is finished when its profile shows no removable cost left, not when a target
+  is met; its commit records the profile and what was tried.
 - A driver that only works in QEMU is a prototype; what needs real hardware is recorded as owed, with its test.
 
 ## Commands
