@@ -36,8 +36,12 @@ M3:
    lookup (`blk_read4k_qd1`, `net_rtt`), the heap.
 3. `net_recovery` once took 656 ms against its 250 ms deadline under `--fast`; not reproduced in 420 recoveries.
    `netload` now says where a slow recovery's time goes.
-4. The hosted deep run: verify on the runner that aarch64 `smp_*` and systest finish (progress-judged timeouts) and
-   that the fast tier fits its budget there.
+4. The hosted runs. The fast tier no longer fits the pre-merge job's 5 minutes on GitHub's runners for kernel,
+   system and os: it builds cold (the cache is saved only by a job that finishes, so one that times out never warms
+   it), builds the system twice (test and production images) and boots guests without KVM; it ran 4 minutes without
+   finishing a suite. The audit-3 pull requests were merged by the owner past protection on a local `--full`; until
+   this is fixed every pull request in those repositories is blocked. Also verify on the runner that aarch64
+   `smp_*` and systest finish (progress-judged timeouts).
 5. The capability proof: Kani verifies one copy and the exhaustive check covers revoke over bounded lists of frames
    and endpoints; a proof over operation sequences and the other destruction paths is owed.
 6. Placement (ARCHITECTURE.md, Placement), each stage the default only when it measures better at 1, 2, 8 and 64
