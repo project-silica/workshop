@@ -173,6 +173,18 @@ security policy.
   level-triggered line is held off until acknowledged. With interrupt remapping a device raises only the lines its
   driver bound (`rogue_tcg`). A failed `IrqBind` leaves the old binding as it was. `IrqWatch` lets an idle processor
   see a device's completion word before its interrupt.
+- **Placement:** work follows the request, not the service. A request stays on the processor where it arrives,
+  device interrupt to driver to stack to program, or at least in one cache domain: each crossing costs a wake-up
+  and cache misses. Throughput scales by a path per processor, not by moving services: `silica-queue` gives a
+  client a queue per processor it submits from, a device a hardware queue per processor where it has them, and the
+  completion's line follows its waiter. The management plane (service manager, log, device manager, remote
+  management) runs on a housekeeping processor, the data plane beside its devices. A declaration states a role and
+  a device to be near (`cpu=` pins only where a measurement says so); the service manager maps it onto the
+  machine's topology, which the kernel gives the root task in its start record. A balancer is an ordinary service
+  holding the processor-time capability: the kernel signals sustained imbalance as an event, and the balancer moves
+  scheduling groups; nothing polls, so an idle machine wakes nothing. Mechanism only in the kernel (topology, the
+  imbalance event, lines following waiters); policy only in services. No placement file, boot parameter or tuning
+  knob, and no kernel thread: authority over processors is the processor-time capability and nothing else.
 - **Devices and DMA:** a device reaches exactly what is mapped in its device address space (`ASPACE_IO`), nothing
   before it is attached and nothing after the space goes; `Unmap` returns after the IOMMU dropped the translation.
   Confinement is for every device or none: a unit the kernel cannot drive makes it refuse every `DeviceAttach` and

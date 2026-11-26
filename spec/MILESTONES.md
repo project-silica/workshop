@@ -39,8 +39,15 @@ M3:
    that the fast tier fits its budget there.
 5. The capability proof: Kani verifies one copy and the exhaustive check covers revoke over bounded lists of frames
    and endpoints; a proof over operation sequences and the other destruction paths is owed.
-6. Placement's default: where netd, its driver and httpd run, decided by a timed server-group session (`http_p50`,
-   `http_p99`, `tcp_cpu_gb`, together against apart), then the device manager placing drivers.
+6. Placement (ARCHITECTURE.md, Placement), each stage the default only when it measures better at 1, 2, 8 and 64
+   processors on latency (`net_rtt`, `http_p50`, `http_p99`, depth-1 block reads), throughput (`net_tx`,
+   `http_load`, depth-32 block reads) and processor cost (`tcp_cpu_gb`), with no idle wake-up and isolation
+   unchanged, against all-on-0 and the alternatives tried:
+   a. Topology in the root task's start record; management services on a housekeeping processor; each data-path
+      service and its device's driver placed in one cache domain by role, not by number.
+   b. A path per processor: `silica-queue` queues per submitting processor, multiqueue virtio-net, NVMe queues per
+      processor, netd and the block path sharded by flow and by queue.
+   c. The kernel's imbalance event and a balancer service that moves scheduling groups on it.
 7. Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, interrupt remapping's old-format block,
    the idle watch's length, the e1000e NVM wait; the `unconfined`, `rogue_tcg` and `idle` guests run there.
 
