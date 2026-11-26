@@ -285,8 +285,11 @@ a packet filter, WireGuard, Wi-Fi.
   believes an answer only when its times are possible, its round trip is under 1 s and, once set, it moves the clock
   under 1000 s. A lease that changes ends the connections on the old address.
 - **TCP for programs** (`silica.net.Tcp`): a program lends memory once and names a block of it per connection; bytes
-  travel in two byte streams in that block. The stack never waits on a program; connections belong to the program
-  that made them and end when it does. Each program has at most 128 of the 256 connections; a listener's full
+  travel in two byte streams in that block. What a program may do is in its capability, from its declaration: the
+  one port it may listen on (`listen=<port>`) and whether it may connect out (`connect`); a port is the owner's to
+  give, never the first claimant's, and anything else is refused `not_granted`. The stack never waits on a program;
+  connections belong to the program that made them and end when it does. Each program has at most 128 of the 256
+  connections; a listener's full
   backlog evicts its own oldest half-open handshake; TIME-WAIT holds a small record restarted only by the peer's own
   FIN; FIN-WAIT-2 ends when nobody holds the connection and the peer is silent; timestamps do not reveal uptime; a
   receiver that answers zero-window probes is kept. Transmit rotates between connections, connections with work are
