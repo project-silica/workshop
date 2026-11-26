@@ -55,7 +55,8 @@ M3:
    device's IOMMU fault notification itself (today the attaching driver gets it, and a hostile one can ignore it);
    a watchdog on aarch64 (QEMU's `virt` has none; `sbsa-gwdt` on the sbsa-ref machine or hardware); a guest test
    of an MSI storm (host model only), of devices above bus 64 (the device manager does not scan an expander's root
-   bus), and of SError containment (needs RAS hardware); netd as the first caller of `mem::watch_low`.
+   bus), and of SError containment (needs RAS hardware); an in-OS test moving a line on aarch64 (`irq_follow` is
+   x86_64 only: its device is the 16550); netd as the first caller of `mem::watch_low`.
 9. With M5's storage: updates land in the inactive image and switch at the next boot with rollback (until then
     `update` says it lasts until a reboot), and logd keeps a bounded log on disk.
 
