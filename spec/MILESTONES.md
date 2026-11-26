@@ -41,11 +41,7 @@ M3:
    and endpoints; a proof over operation sequences and the other destruction paths is owed.
 6. Placement's default: where netd, its driver and httpd run, decided by a timed server-group session (`http_p50`,
    `http_p99`, `tcp_cpu_gb`, together against apart), then the device manager placing drivers.
-7. List methods (services, devices, partitions, log sources) answer in one message: `from` and `next` on each.
-8. Hot-plug: a status read and clear that cannot miss a fast change, interrupt lines returned, a slot reusable by a
-   different device, the link wait off the device manager's loop, bridge bus numbers validated; and an attack test
-   for events crowding out completions.
-9. Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, interrupt remapping's old-format block,
+7. Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, interrupt remapping's old-format block,
    the idle watch's length, the e1000e NVM wait; the `unconfined`, `rogue_tcg` and `idle` guests run there.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
