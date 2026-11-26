@@ -1,29 +1,69 @@
 # Silica architecture
 
-Design decisions, rationale and compatibility boundaries.
-The escape hatch is what keeps a wrong decision from forcing a rewrite.
-This is the current best design, open to challenge on evidence (see `AGENTS.md`). Change it as part of the
-same piece of work as the code that shows a decision was wrong, and say what convinced you.
+The current design: what each part promises, and why. It is open to challenge on evidence (`AGENTS.md`); change it
+in the same work as the code that shows it wrong. Measurements and history live in commit messages, not here.
+
+## Invariants
+
+Every component keeps these. A design that seems to need an exception is a design problem to solve. Robustness is a
+guarantee stated first (what must never happen) and then carried by what the kernel reports and what a capability
+scopes; where a conventional system would use a timeout, a quota, a setting or a privileged supervisor, the entries
+below say what Silica uses instead.
+
+1. **Least authority, carried by the capability.** A holder can do what its capability's rights and scope say and
+   nothing more, so a compromised component reaches only what it was given.
+2. **A holder pays for what it consumes, and it comes back when the holder goes.** Kernel objects are made from the
+   holder's own Untyped, a service keeps a client's state in memory the client lent, and processor time comes from
+   the holder's scheduling context, so there is no shared table for one client to fill and nothing to reclaim but a
+   capability. Where a service must keep state for a client in its own memory, the bound is that client's, stated in
+   its declaration.
+3. **Knowledge comes from the kernel, not the clock.** A holder learns that a peer ended, faulted, owes an answer or
+   took its notification from the kernel (exit and fault messages, `CapNotice`, notifications, parked calls,
+   `Inspect`), because a guess from elapsed time is wrong both ways: it ends the slow and waits on the dead. Nothing
+   waits forever on something it trusts less: the wait ends on the kernel's report, and the bound behind it is a
+   backstop whose expiry is that peer's failure. A normal path, or a passing test, that waits for a bound marks an
+   unfinished design. Time judges only what no kernel can speak for: a device, by the bound its specification
+   gives, and a host on the network, by a bound budgeted per peer.
+4. **Less-trusted input changes what a more-trusted part believes only after being checked** (time, routes,
+   neighbours, leases, versions, device state), because the belief outlives the input.
+5. **The first holder keeps what it holds.** A second claimant is refused, not put in its place, so a holder of an
+   endpoint cannot take over someone else's session.
+6. **Untrusted bytes are decoded totally and shown inertly.** Parsers never panic and control characters never
+   reach a terminal, because every boundary is an attack surface.
+7. **Fail closed and say why.** An unknown field, an unsupported feature or an unconfined device is refused or
+   reported by name, so nobody believes a promise that was not kept.
+8. **Secrets live only where they are needed and are wiped after use**, so a component that leaks reveals no more
+   than it holds.
+9. **A cost an adversary can trigger is a security bug, not a performance limit**, because the attacker chooses
+   the workload.
+10. **Authority and configuration arrive as capabilities**, given to the one component they concern as a capability
+    or a field of its declaration, and checked with the image they ship in, because what everyone can read or claim
+    is ambient authority. The boot string holds the kernel's own settings, which are the owner's, and nothing a
+    service reads.
+11. **A production image carries no test machinery.** A failure is tested by building the thing that fails (a
+    hostile program or device model in the test image) or by code under the `harness` Cargo feature, which only
+    test images build; the server image is checked to contain none of it (`server_image`).
+12. **A guarantee beats a number.** When a guarantee costs speed, record the cost with its reason
+    (`os/bench/open.tsv`) and win it back in the design.
+
+Performance aims at each path's own best, not at a margin over another system: a path is tuned until a profile shows
+that what remains is work the hardware or a guarantee requires, and every improvement becomes its new ratchet.
+Linux's numbers are a floor to stay above (`spec/TESTING.md` section 4.1).
+
+Every trust boundary (syscall, IDL method, parser of untrusted bytes, device response) has its promise written beside
+the code and an attack test that fails when the promise breaks.
 
 ## 1. Shape
 
-Capability-based microkernel. Everything else runs in isolated userspace
-processes that talk over typed IPC. This is the seL4 / Zircon lineage. It is
-the only proven design that gives small size, fault isolation, and a security
-model stronger than Linux at the same time.
+A capability microkernel (seL4 lineage: fewer object types, fewer syscalls, no kernel heap, no policy in the kernel;
+from Zircon only what costs no kernel code). Everything else runs in isolated userspace programs that talk over typed
+IPC, because only that gives small size, restartable drivers and isolation at once.
 
-Where seL4 and Zircon differ, follow seL4: fewer object types, fewer syscalls,
-no kernel heap, no policy in the kernel. Take from Zircon only what costs no
-kernel code (the vDSO-only ABI, userspace pagers, the IDL-first service model).
-
-Hard rules:
-
-- 64-bit only, everywhere. No 32-bit kernel, no 32-bit userspace, no compat mode, no 32-bit syscall entry, no x32. The kernel never leaves long mode.
-- No 30-year-old hardware interfaces and no Unix conventions (section 3). Hardware that is merely older but still common in working machines (SATA, I/O ports, line interrupts) is supported.
-- No compatibility layers, shims, or emulation of other operating systems, in the kernel or above it (section 11).
-
-- Reason: a monolithic kernel cannot be small, cannot restart a crashed driver, and puts every driver bug in ring 0.
-- Escape hatch: the kernel's syscall surface is private (section 4). Any server can be merged into another address space later for speed without changing any application.
+- 64-bit only (no 32-bit kernel, userspace, compat mode or entry).
+- No legacy hardware interfaces or Unix conventions (section 3); older but common hardware (SATA, I/O ports, line
+  interrupts) is supported.
+- No compatibility layers, shims or emulation of other systems, in the kernel or above it (section 11).
+- Escape hatch: the syscall surface is private (section 4), so servers can be merged later without changing apps.
 
 ## 2. Size budgets (enforced by `tools/size.sh`)
 
@@ -32,332 +72,382 @@ Hard rules:
 | IPC fast path + context switch + syscall entry | 32 KB text | M2 | fits L1i |
 | Kernel image, text + rodata | 256 KB | M1 | fits L2 on any CPU since 2015 |
 | Kernel + core servers (init, memory, process, vfs, net, block) resident text | 2 MB | M5 | fits L2 on current desktop/server CPUs, L3 everywhere |
-| Minimal server image (boots, serves TCP, SSH-equivalent) | 16 MB on disk | M4 | |
+| Minimal server image (boots, serves TCP, SSH-equivalent) | 16 MB on disk | M4 | measured as the bytes of its files (`build_server_image`) |
 | Desktop image without browser | 128 MB on disk | M6 | |
 
-From its milestone on, an artifact that is missing fails `tools/size.sh`; before
-that it is skipped. The bloat ceilings below are required from M1. The images
-measured are the files the milestone exit test boots, not a separate build.
+From its milestone on, a missing artifact fails `tools/size.sh`; before that it is skipped. The images measured are
+the files the exit test boots.
 
-Bloat ceilings, also enforced by `tools/size.sh`:
-
-| Measure | Ceiling |
+| Bloat ceiling (from M1) | Ceiling |
 | --- | --- |
 | Kernel source, excluding tests and the three arch directories | 12,000 lines of Rust |
 | Each arch directory | 4,000 lines |
-| Syscalls (every kernel operation is its own syscall; there is no multiplexed invoke) | 32 |
+| Syscalls (every kernel operation is its own syscall) | 32 |
 | Kernel object types | 10 |
 | Heap allocations inside the kernel after boot | 0 |
 
-A change that breaks a budget is not finished, even if its tests pass. Raise a
-budget only with the measurement that justifies it written beside the new number.
+A change that breaks a budget is not finished. Raise a budget only with the measurement written beside the number.
 
-## 3. What is deleted (the legacy list)
+## 3. What is deleted
 
 | Legacy abstraction | Replacement |
 | --- | --- |
-| `fork`/`exec` | `spawn(image, capabilities)`; child gets only what the parent hands over |
-| Ambient authority, uid/gid, root | Capabilities only. No user identity in the kernel. Users are a policy service. |
-| Global filesystem namespace | Per-process namespace built from directory capabilities |
-| Signals | Typed async messages on a channel; exceptions delivered to a supervisor port |
-| `ioctl` | Typed IPC protocols defined in IDL |
-| "Everything is a file" | Everything is a typed object behind a capability |
-| Blocking syscalls for I/O | Shared-memory submission/completion rings; sync call is a library wrapper |
-| TTY/PTY line discipline | Terminal is a userspace protocol over a channel |
-| BIOS, CSM, MBR, PIC, PIT, xAPIC, PS/2, VGA text, IDE, floppy, parallel, ISA | UEFI, GPT, x2APIC, the TSC-deadline timer on an invariant TSC, USB HID, GOP framebuffer, NVMe/AHCI/virtio. An x86_64 machine without x2APIC, TSC-deadline, XSAVE and AVX2 (anything before 2013) is not supported, and the kernel says so at boot |
-| 32-bit, compat mode, segmentation, real mode | 64-bit only; the kernel never leaves long mode |
-| Kernel heap, kernel-side allocation policy | Untyped memory: userspace supplies the memory for every kernel object (section 6) |
-| Kernel modules | Userspace driver processes, restartable |
-| Text config scattered in `/etc` | One typed, versioned, transactional config store |
-| In-place package installs | Content-addressed immutable packages, A/B atomic system updates |
-| Setuid, sudo | Capability delegation through a broker service with user consent |
+| `fork`/`exec` | `spawn(image, capabilities)`: the child gets only what the parent hands over |
+| Ambient authority, uid/gid, root | Capabilities only; users are a policy service |
+| Global filesystem namespace | Per-program namespace built from directory capabilities |
+| Signals | Typed messages; faults delivered to a supervisor's endpoint |
+| `ioctl`, "everything is a file" | Typed IDL protocols on typed objects |
+| Blocking I/O syscalls | Shared-memory rings; a synchronous call is a library wrapper |
+| TTY/PTY line discipline | A terminal protocol over a channel |
+| BIOS, CSM, MBR, PIC, PIT, xAPIC, PS/2, VGA text, IDE, ISA | UEFI, GPT, x2APIC, TSC-deadline on an invariant TSC, USB HID, GOP, NVMe/AHCI/virtio |
+| Kernel heap, kernel modules | Untyped memory supplied by userspace; restartable userspace drivers |
+| `/etc`, in-place installs, setuid/sudo | One typed config store; content-addressed A/B updates; delegation through a broker with consent |
 
-Old things kept because firmware or the internet require them, all outside the
-kernel: FAT32 for the UEFI system partition, ACPI (AML interpreter in a
-userspace service), IPv4 alongside IPv6.
+x86_64 requires x86-64-v3 (what user programs are built for), NX, x2APIC, XSAVE and an invariant TSC; aarch64 user
+programs are Armv8.0 and PAN is used where present. The loader and kernel refuse an unsupported processor by name
+(`inos.*/cpu.*`). Kept because firmware or the internet need them, all outside the kernel: FAT32 for the ESP, ACPI,
+IPv4 beside IPv6.
 
-## 4. Stable ABI (the anti-lock-in decision)
+## 4. Stable ABI
 
-Syscall numbers and layouts are **not** stable and are never called by
-applications. The stable contract is:
+Syscall numbers are private and never called by applications. The stable contract is the IDL protocols in `idl/`
+(additive evolution, `spec/IDL.md` section 4) and `libsys`, mapped into every program. Before the first `stable`
+release (`spec/CI_RELEASE.md` section 8) protocols are provisional and replaced by staged migration: add the new one,
+move the provider and every consumer, remove the old one, each commit building. From the first `stable` release,
+nothing published is removed or changed. Reason: this lets the kernel be rewritten under running software.
 
-1. The IDL protocol definitions in `idl/` (versioned, additive evolution only).
-2. `libsys`, a small shared object the kernel maps into every process (vDSO style). Applications link against it.
+## 5. Kernel contents
 
-The compatibility promise starts with the first `stable` release (`spec/CI_RELEASE.md` section 8; not before the M9 exit test passes). Until then every protocol is provisional: when use shows a protocol is wrong, replace it through a staged migration (add the new one, move the provider and every consumer, then remove the old one). Each single change is still additive or a removal of something unused, so no commit breaks a build. From the first `stable` release on, nothing published is removed or changed. That release waits for the outside-developer trial (`spec/CI_RELEASE.md` section 9), so its findings can still change the design.
-
-- Reason: Linux cannot fix its syscall mistakes because binaries call them directly. This design lets the kernel be rewritten under running software.
-- Escape hatch: this is the escape hatch for nearly everything else.
-
-## 5. Kernel contents (and nothing else)
-
-Address spaces and page tables. Threads. Scheduling. Capabilities and
-capability spaces. IPC (synchronous call/reply, async notifications, shared
-memory objects). Interrupt routing to userspace. Timers. IOMMU programming.
-Exception delivery. Boot handoff.
-
-Not in the kernel: filesystems, network stack, drivers (except the interrupt
-controller, timer, and early serial), process policy, naming, security policy.
+Address spaces and page tables, threads, scheduling, capabilities, IPC (call/reply, notifications, shared memory),
+interrupt routing to userspace, timers, IOMMU programming, exception delivery, boot handoff. Nothing else: no
+filesystems, network stack, drivers (beyond the interrupt controller, timer and early serial), process, naming or
+security policy.
 
 ## 6. Kernel mechanisms
 
-- **Objects (10, final)**: Untyped, CapSpace, Thread, AddressSpace, Frame (memory, any power-of-two size from a page up), Endpoint (synchronous IPC), Notification (async signal, also carries interrupts), SchedContext (CPU budget), Hw (a hardware resource that is not memory: a range of I/O ports, interrupt lines or device identities, the kernel's console, or the power switch; created at boot and only ever narrowed), Vcpu (M9). There is no Channel, Port, Timer, Interrupt, PageTable or Job object: each is either expressed with these ten or lives in userspace.
-- **Untyped memory**: all physical memory is handed to the root task as Untyped capabilities at boot. Every kernel object is created by retyping Untyped memory that the caller owns. The kernel has no heap and never allocates after boot. Resource accounting, quotas and "jobs" are therefore userspace policy with no kernel code. Revoking an Untyped destroys everything made from it. Memory whose contents must be kept (device registers, firmware tables, the ramdisk) comes as Untyped that is never zeroed and becomes only frames and smaller Untyped; whether a frame maps with device attributes is a separate property, so the ramdisk maps as ordinary memory.
-- **Capabilities**: unforgeable handles with a rights mask, named by slot index in the caller's CapSpace (one flat table per CapSpace, no guards or multi-level addressing; an operation on another CapSpace names that CapSpace's capability and an index). Every capability has a place in a derivation tree. *Derive* makes a child with equal or fewer rights that depends on its source; *duplicate* makes an independent sibling; *move* keeps the place. A capability never outlives what it was derived from: deleting one deletes its descendants, so no descendant is ever re-parented and every step of delete and revoke is O(1) and preemptible. Lend with derive, hand on with duplicate or move. An Untyped has exactly one capability (split it by retyping). No capability, no access. No exceptions.
-- **Notices**: a holder can ask to be told when one of its capabilities is deleted, by whatever means (`CapNotice`): its object's memory taken back because the owner ended, a revocation of what it derives from, or its own delete. The kernel signals a notification of the holder's with bits it chose, once, at the moment the slot empties. The watch lives in a slot of the holder's (the notice, a capability derived from that notification, its badge the bits), so it costs no kernel table anyone could fill, ends silently when the notice or the notification goes, and follows either slot when it is moved. A notice is never copied or watched, so firing one deletes a leaf and nothing deeper. It is how a client learns of a peer's end with nothing to poll: every device client watches its capability to its driver's wake-up, which goes with the driver, and with the device manager and all its drivers when that ends. Polling for the same thing every 10 ms had woken the idle server 200 times a second (2026-11-24); it now wakes none in 60 s.
-- **Kernel execution**: one kernel stack per processor with a guard page, interrupts off in the kernel, no blocking inside it. Every entry runs to completion and returns to the thread the scheduler picks. Long operations (zeroing a large Retype, revoking a large tree) poll for a pending interrupt, record their progress in the objects, and restart. The kernel never dereferences a user virtual address: message words beyond the registers travel through the thread's IPC buffer Frame, reached through the kernel's map of physical memory. A system call preserves what a function call preserves (callee-saved general registers and the floating-point control words) and, like a function call, not the vector registers; so a thread switched out inside a system call needs no extended-state save, and when it resumes its vector registers are cleared. Interrupted and faulted threads get a full save and restore. The scheduler runs on the way out only when an entry changed something it cares about.
-- **IPC**: synchronous call/reply on Endpoints with direct thread switch (a call runs the waiting receiver at once, its reply runs the caller at once, both inside the caller's time slice) and register passing. A message carries up to 500 words (four in registers, the rest through the IPC buffers) and up to four capabilities, each lent (derived: the sender can revoke it), duplicated or given (moved); sending capabilities needs the GRANT right, a reply may always carry them. A server that must answer out of order receives with a notification to park the call on and answers by sending to that notification: a notification is a place a thread waits, so no reply object type is needed. An operation is tied to the capability it was made through: when that capability leaves its slot (deleted, revoked through an ancestor, or moved away) while the operation still waits (a queued send or call, a receive, a call delivered and not yet answered, parked or not), it fails with `Gone`, and a server replying to such a call finds no caller (`NoCaller`); operations through other capabilities to the same endpoint are untouched, and the slot can be granted again at once. Destroying an endpoint is the same for all of its capabilities together. So revoking a client's capability stops that client now, including the reply it was waiting for. A receive on an endpoint can name a notification to listen on as well: a signal pending there, or arriving while the thread waits, ends the receive with the notification's word and a descriptor (`MsgInfo::NOTIFIED`) the kernel clears from every message, so none can imitate it. That is the loop of every driver and server (callers, interrupts and clients' wake-ups heard by one thread in one wait, `silica_rt::ipc::serve_events`), with no second thread, no poll, and the steady state (reply, then receive and listen again) on the fast path. A server with long-poll methods (the console's `read_line`, which waits for a line to be typed) has every call parked as it arrives (`serve_parked`) and answers each when its event comes, at one system call more per call. One thread listens on a notification at a time; taking the notification away ends the receive with `Gone`. (seL4 binds a notification to a thread for the same purpose; naming it in the receive keeps the binding out of the thread object and lets a thread listen on different notifications in turn.) Streams, channels, ports and shared submission/completion rings are userspace libraries built from Frames plus Notifications (`silica_ring`: one producer, one consumer, a system call only when the other side said it sleeps). The kernel knows nothing about them.
-- **Firmware's memory**: what the firmware keeps in RAM (ACPI tables, runtime services) is handed over as kept memory that maps as ordinary memory (`KIND_FIRMWARE`), apart from memory-mapped I/O and reserved ranges, which are device memory. Tables are read with ordinary loads; a device mapping faults on an unaligned load on Arm, which is how the difference was found.
-- **Memory**: userspace pagers handle faults (a fault is a call to the thread's fault endpoint; the reply resumes it, and can carry the frame to map so the usual cure costs one kernel entry). An AddressSpace object carries the memory for its own page tables and `Map` fails with `NoMemory` when that runs out, so table memory is paid for by the owner like everything else. A failed Map preserves every translation and the remaining table capacity. One Frame capability maps at one place; copy it to map it twice. Deleting a Frame capability, or the address space, removes the mapping. No mapping is writable and executable at once. Page-table entries are written with their accessed and dirty bits already set (x86): the kernel keeps no page ages, and letting the processor set them cost more than the rest of a fault; a pager that wants to know which pages were used will ask for it explicitly (not built: nothing needs it before swap, D04). Frames of 2 MiB and up use large pages. No overcommit, no OOM killer; allocation fails at the caller.
-- **Scheduler**: per-CPU run queues; a fair class plus a deadline class with admission control; scheduling-context capabilities so budget is delegated across IPC (priority-inheritance by construction); core-type aware (P/E cores, not yet); tickless. A SchedContext is the authority to a share of processor time: fair (a weight; an unbound thread has the default weight) or deadline (a budget per period on one processor, admitted only while the processor's reservations stay at or below 90%, run earliest deadline first ahead of all fair work, and held back once spent until the next period: a hard reservation). Several threads may share one. Fair threads are ordered by virtual runtime (real time scaled by default weight over weight); the running one is preempted once it is 3 ms ahead of the next; a thread that slept is placed at most 3 ms behind the least-run one and takes the processor at once when it is 1 ms or more behind the running one, while a thread that has never run starts level with the least-run one. Time is charged to the processor's account, the thread last picked from a queue: a direct IPC hand-off does not change it, so a server running on a call spends its caller's share or budget, and the IPC fast path reads no clock. The timer is set exactly for the next preemption, budget exhaustion or refill. Cost, the kernel benchmarked before and after in one session on the reference host: a context switch by yield 212 to 218 ns at the processor's base frequency (138 to 142 ns with turbo; 314.6 to 379.7 instructions: the clock read, the charge and the next slice deadline that fairness needs on every switch), an IPC round trip 412 to 413 ns (977.6 to 994.7 instructions). Known limit: the fair queue is a list kept in order, so a wake-up costs a walk over the threads queued on that processor; a tree replaces it when a measurement with many runnable threads per processor shows the walk. Measured in the guest: weights 1024 and 3072 share a processor 1:3.00; a 2 ms in 10 ms reservation beside three fair spinners gets 19.8%; a thread that mostly sleeps wakes within microseconds beside two spinners.
-- **SMP**: every thread has a home processor and runs only there (moving it is an explicit operation; balancing is userspace policy). A move is invisible to the thread moved, so a balancer needs no cooperation from what it balances: a runnable thread runs on its new processor next, one waiting for a reply is answered there, one blocked in a send or receive makes the same call again there (a `ReplyRecv` that has replied only receives), and a system call overtaken while it waited for a processor's lock is made again (each architecture's entry marks, before it says it is in the kernel, whether a system call saved the frame). Measured: a client and server moved 87,000 times between eight processors during 200,000 round trips lose and repeat nothing (systest, aarch64). Kernel state is protected by one lock per processor, used at four levels. *Local*: a kernel entry holds its own processor's lock and may change that processor's scheduling state, its threads, and the endpoints and notifications it owns (those whose last waiting receiver is one of its threads); a call and its reply between threads of one processor never write memory another processor uses, so independent workloads scale with the processors. *Pair*: a message between threads of two processors, or through a queue the other one owns, adds the other processor's lock (both taken in index order) and checks again that everything it touches belongs to one of the two, so a client and server on different processors do not stop the rest of the machine; a waiter whose deadline passes while it sits in a queue another processor owns is taken out globally. *Structure*: mapping a frame keeps the local lock and adds one lock shared by all mapping, so a fault resolved by a pager stops nobody. *Global*: an operation that changes capability slots, removes mappings, or touches another processor's threads or queues lets go of its own lock and takes every processor's in index order; holding them all it is the only code in the kernel, and before it lets memory be reused it interrupts every processor that might still run on that memory in user mode and waits until it has entered the kernel (so TLB shootdown, thread destruction and address-space destruction are synchronous). An address-space root is used outside user mode too where it maps the kernel (x86_64: every root carries the kernel's half; aarch64 keeps the kernel in TTBR1): a processor idle, or waiting for its lock, still runs on its last program's root. So a destroyed root's memory is reused only after each processor that had it loaded has been asked to leave it and has answered, which it does while waiting for the lock the destroyer holds (no switch on the way to idle, so the cross-processor path pays nothing; found as a reset in 7 of 240 eight-processor `systest` runs under load, and modelled under `loom`). A processor that waited for its lock re-examines its current thread: it may have been stopped or destroyed. Each processor's lock and state have their own cache lines. The lock protocol is modelled under `loom`. Known limit, to be measured before it is changed: global operations cost one lock per processor. A system call takes its processor's lock with one atomic exchange before it saves the register frame (when the lock is free nobody can look at the frame, and fewer stores wait to drain); that exchange, about 3 ns of a 55 ns null system call on the reference host, is what this design costs on the local path over a uniprocessor kernel, and it is why `null_syscall` is 2 ns behind its uniprocessor ratchet. Removing it would mean no processor ever takes another's lock (requests posted to the other processor instead), which puts an interprocessor interrupt on every cross-processor call; that trade is decided by measurement on real hardware (M8), not here. Calls, replies and fault deliveries between threads of one processor through endpoints it owns, without capabilities, take a fast path that checks every condition first and otherwise falls back to the general path unchanged.
-- **Randomness**: every program has a random number generator of its own (`silica_rt::random`: ChaCha20 with fast key erasure, so neither its earlier keys nor anything it gave out stay in its memory), seeded by its parent with 32 bytes from the parent's own generator, put in the child's start-up page and overwritten by the child's runtime before `main`. The root task's is seeded from what the boot loader gathered (`RootInfo::entropy`, BLAKE2s over the firmware's and the processor's generators and timing jitter); with no source the loader trusts it says so as an error at boot, since every generator descends from it. A random number is neither a system call nor a call to a service, and with no `fork` no two programs ever share a stream (`checks=programs` starts three programs and compares their numbers). Not yet: mixing entropy in after boot (virtio-rng, the processor's generator) through an entropy service that reseeds the supervisors, and the forward secrecy of the root task's own seed, which stays in its start-up record.
-- **Logs**: a service prints into a ring of its own (`silica_rt::log`, 16 KiB of 56-byte records in a frame the service manager makes for it before anything starts), never waiting: text that does not fit is lost and the loss is said in the log when there is room. The log service (`logd`, `silica.log.Reader`) is given every ring and the notification their writers signal at its start, keeps the last 32 KiB of each service's text, and puts the text on the console as it comes (an unfinished line too: a prompt), starting another service's text on a fresh line and showing the line it cut short (a prompt and what was typed after it) again below it, so a command never reads split on the serial line; the kernel does the same between its own writers (the log service, the kernel's lines, the root task). Neither calls the other: before the service manager reports a failure or a check's result, says `BOOT OK` or turns the machine off, it signals a flush bit and waits for the answer, at most 2 s, and says so on the console if none came, so a log that hangs costs the system its log (said, never silently), not its manager; and the log service, which that wait holds, never waits for the service manager. (It once asked the manager for drivers' rings by a call; a call made while the manager waited on a flush held both until the wait gave up, and half of 48 loaded boots lost a service's last lines at power-off.) The shell's `log <service>` reads it. A driver has a log too: the device manager makes a ring for each device the first time it starts a driver for it and registers it with the service manager (`silica.system.Manager`'s `add_log`), which names the source after the asking service (`devmgr/virtio-blk@00:01.0`: no service can write as another) puts it in a slot of the log service's own CapSpace, names it in the ring directory (a frame the log service maps read-only: a generation, then the source's name, per ring; `silica_rt::log::directory`) and signals the log service, which takes it from its slot. Every driver started for that device writes on in the same ring (a ring whose maker ended is replaced in the same slot, under a new generation), so the log of a device reads across its drivers' restarts, and a log service started again is given every ring at its start. Only the root task still prints to the kernel's console. Owed: levels and structure (a record per event, not text), persistence across a reboot.
-- **Providers that restart**: a service's provider can end and be started again (`restart=always`), and whatever the service held of the old one goes with it. Two mechanisms, both the service manager's, let both sides pick up. A service is told: its parent gives every service its own notification (`slots::EVENTS`, the same object for every start of it) and signals bit `n` there when the provider of its `n`th need was started again; the service's libraries share out bits from 32 up (`silica_net::tcp::Tcp::on` listens again on its ports and ends its connections as reset). A provider remembers: a service that `keeps` is given a page of 4 KiB (`slots::KEEP`, zeroed at boot) that the service manager keeps across its restarts (the network stack's lease and a record of each connection, so that its next instance answers on its address at once and resets every connection the last one had rather than leave peers waiting, systemd's file-descriptor store in a page). A program that only waits is never polled for this: Zircon's channels signal a closed peer, but Silica's endpoints belong to the service manager and outlive their provider; systemd restarts a dependent with its provider, which a database should not suffer for its network stack's restart.
-- **Console and power**: the kernel owns one console (the serial port it logs and panics to); a holder of the console capability writes up to 32 bytes per call to it, so bring-up and panic output needs no driver in any program, and the kernel writes each of its lines whole, and a program's text of up to 224 bytes too (pieces marked as having more to follow are held in the thread object, 192 bytes, and written with the last), so lines never tear; a writer that finds the line left unfinished by another (a shell's prompt) starts a fresh one, so a line a reader anchors on never begins with someone else's text. `silica_rt`'s `println!` formats a whole line before writing it. (With 32-byte pieces only, two programs' lines interleaved at 32 bytes on two processors, which hid a passing test's line from its harness.) The power capability turns the machine off or resets it: PSCI SYSTEM_OFF and SYSTEM_RESET on Arm; on x86 ACPI S5 (the FADT's PM1 control registers, the DSDT's `\_S5` values read by `formats::acpi` without an AML interpreter, the machine put in ACPI mode first if the firmware left it out) and the FADT's reset register. The kernel stops nothing first: logging (D08) and the shutdown service (D16), which stops services in order and flushes storage, are built on these, not beside them. Known hazard: the x86 kernel also writes the QEMU debug-exit port (0xF4) whenever it stops, which on real hardware is an unknown port; it is to be written only when the command line names a harness, as on Arm (C35).
-- **Time**: monotonic clock from the invariant TSC (or arch equivalent), calibrated from CPUID, the hypervisor's clock, or the ACPI PM timer; read in userspace without a syscall. An idle processor arms its timer ahead of the next deadline by its measured wake-up latency (a running average, capped at 50 us) and spins the rest, so deadlines are met to within a microsecond instead of late by the time a virtual processor takes to be woken. A processor with nothing to run first watches its presence word for 5 us before it halts: whoever has work for it meanwhile says so with one compare-and-swap instead of an interrupt (if the watcher has already swapped itself to halted, that fails and the interrupt is sent: one of the two always succeeds, modelled under `loom`). The processor says "watching" while it still holds its lock, and reaches "halted" only by that swap: the watch lets interrupts in on every turn and does not end for one, so an interrupt sent to a processor that is about to watch would be taken and the halt after it never ended (the first version said "idle" under the lock and "watching" after it; under KVM the gap is a few instructions and nothing showed, under emulation the aarch64 cross-processor tests hung), and a deadline inside the watch needs no timer. Swept (`bench.sh --sweep IDLE_WATCH`): cross-processor round trips on one pair 218,000 a second with no watch, 1,041,000 with 5 us, no more with 20 or 200 us, nothing else changed; against Linux with its own idle polling on, 2.5 times its 400,000. The watch is power spent on a guess, so it is about what the halt and wake it avoids cost; a longer or adaptive one waits for a workload whose partner is slower than a ping. The 5 us is now only where each processor's watch starts: it grows after halts that work ended soon and shrinks after long ones (`sched::Watch`), so what it settles on is the machine's. Swept again with that in place (2026-11-23, `bench.sh --sweep IDLE_WATCH=1000,2000,5000 --only ipc_cross`): one pair 930,000, 963,000 and 963,000 round trips a second, four pairs 3.89, 3.90 and 3.90 million, all within the noise, where before the watch learned 1 us had halved them. A length measured at boot was tried and is not needed: timing a processor's own timer-ended halts gives the woken side's cost (474 to 633 ns here), not the waker's, which is what the watch saves. There is no timer object: a receive takes an absolute deadline, so a sleep is a wait on a notification nobody signals and a timeout is the same call. The wall clock is a page, not a service: the service manager makes one time page for the system (`silica_rt::time`: the wall clock as an offset from the monotonic clock, its source, when it was set, under a sequence word) and every program it or a service starts reads it (`slots::TIME`, passed on read-only by `spawn`), so the time of day costs a few loads and the monotonic clock's read, as Linux's vDSO. At boot it is set from the firmware's clock (the machine's battery-backed clock, read by the loader), before any network; the right to change it is the page writable, given to a service whose manifest says `sets_time` (the network stack's time-server client), not a call anyone may make. Checked at every boot (`wall_clock`: within the host's time around the boot). The network stack sets it from a time server (SNTP, `silica_inet::ntp`: the server the boot options name, `netd.ntp=<address>[:<port>]`, else the one the lease names in DHCP option 42; asked when bound, then every 64 s doubling to 1,024 s; an answer taken only from that server to the port asked from and echoing the question's time, from a synchronized server), stepping it by RFC 5905's offset (`ntp`: a server 1,000 s ahead moves the clock +1,001 s, within the test's 3 s, its round trip 0.9 ms). A service's boot options are the command line's `<service>.<key>=<value>` words, given to it in its start-up page (`silica_rt::option`), as Linux's module parameters are. Owed: writing the corrected time back to the hardware clock, time zones (a program's, not the system's), slewing rather than stepping, more than one server and their names (DNS, G05), NTS.
-- **Interrupts**: every device interrupt is bound to a Notification by the holder of an interrupt-line capability and arrives as that capability's badge, on the binder's processor. A level-triggered line is held off after each interrupt until its driver acknowledges it, so a stuck device costs its driver, not a processor. Lines the I/O APICs wire are numbered as ACPI numbers them; the lines above them (`RootInfo::msi_first`) are message-signalled: `IrqBind` with `IRQ_MSI` binds one for a single device (named through a device-identity capability) and returns the message the driver writes into that device's MSI-X table. On Arm the message lines are LPIs through the GICv3 ITS (`its.rs`: the LPI property and pending tables, the ITS's device and collection tables and command queue, carved at boot; a line is an event of its device's translation table, the device named by its PCI requester ID). Found on the way: the interrupt loop took every identifier from 1020 up for "nothing pending" and returned without ending it; LPIs start at 8192, so the first one left the CPU interface's running priority raised and every later interrupt, the timer's too, was never signalled. Known limits: one vector space for the machine (192 lines in all, where Linux has about 200 per processor; per-processor vector tables when a machine needs more), and no interrupt remapping yet, so nothing checks which device sent a message and a device that can do DMA can forge another line's by writing to the interrupt address range. A forged interrupt is a spurious notification to a driver, which drivers must tolerate anyway, never a breach of memory; remapping is owed before M3 exits (C32).
-- **Devices and DMA**: an AddressSpace can be made *for devices* (`ASPACE_IO` at Retype). It is the same object with tables in the IOMMU's format: the frames mapped in it are what the devices attached to it reach by DMA, at the addresses they are mapped at, readable or writable as mapped. `DeviceAttach` attaches a PCI function (segment, bus, device, function) to one, through a device-identity capability covering it, or detaches it. A device reaches nothing before it is attached, exactly what is mapped while it is, and nothing once the address space is destroyed; so ending a driver, however it ends, cuts its device off from memory in the same revocation that takes the driver's memory back, and the frames can be reused at once. `Unmap` (and deleting or revoking a mapped frame capability) returns after the IOMMU has dropped the translation. A lender's revocation therefore takes a frame away from a device as surely as from a program. Device addresses are chosen by the driver (by convention its own virtual addresses), so a driver never learns a physical address. The kernel carves the IOMMU's own tables at boot: a root table, context tables for 64 buses with attached devices (`NoMemory` beyond; a server with devices on more buses needs the pool sized from the firmware's bus count), a queue page per unit. Intel VT-d on x86_64 (legacy second-level tables, queued invalidation waited for, 39 or 48 bits, 2 MiB pages where the unit has them; every unit shares one root table, so the kernel need not know which unit a device is behind; units of other PCI segments get an empty root and their devices reach nothing). A refused access is logged with the device, the address and the direction. Cost, measured: switching translation on is 1.1 ms in QEMU's emulated VT-d (the emulator rebuilds every device's view of memory; setting the root table and the first invalidation take 0.24 ms more), so the held host's boot went from 16.77 ms (the kernel before this, on the same machine with the IOMMU present) to 18.7 ms, interleaved in one session (`bench.sh --compare`); before the machine had an IOMMU at all the boot was 13.77 ms. On hardware the same steps are register writes the unit completes in microseconds; the boot gate is measured again there (M8). The code that maps for devices is a copy of its own, dispatched before anything else in `Map`; even so the page fault's instruction count moved from 2766.3 to 2793.3 and the IPC round trip's from 994.7 to 1003.8 (a new test on `ReplyRecv`), and with the old mapping body verbatim the fault was still 2794: the compiler's register allocation around the inlined walk, shown instruction by instruction, not work the path does. Time, interleaved: page fault 569 to 571 ns, round trip 413 to 415 ns, context switch 217 to 218 ns, all within a nanosecond or two. Not yet: AMD-Vi, Arm SMMUv3, the firmware's requested mappings (RMRR: a device the firmware was still using, such as a USB controller in legacy emulation, reaches nothing once the kernel starts), and telling the owner about refused accesses other than on the console.
-- **Machines without an IOMMU** (most virtual machines, `iommu=off` on the command line): there are no device address spaces, `DeviceAttach` is `Unsupported`, and a device that does DMA reaches all of memory whatever its driver holds. The kernel says so at boot and `RootInfo::dma_top` is 0. Only there, the holder of a device-identity capability may ask a frame's physical address (`Inspect`), which is the address the device needs; with an IOMMU nobody is told one. Starting a DMA-capable driver on such a machine is trusting it with the machine; that is the device manager's decision and it says so. The driver framework hides the difference, so a driver is written once. The `unconfined` test boots the same image on x86_64 without the IOMMU: the device manager says every driver it starts is trusted with all of memory, and the drivers pass blkcheck; the boot with the IOMMU must not say it.
-- **Inspection**: `Inspect` reads kernel state through a capability and changes nothing: what a CapSpace slot holds, what a thread is doing, and whether a call is still parked on a notification (a server keeping a call to answer later learns whether its caller has gone). The owner's tools list every thread and capability from the capabilities the owner holds; there is no kernel debugger with its own authority.
-- **HAL**: `kernel/arch/{x86_64,aarch64,riscv64}` behind one trait. x86_64 is built first; aarch64 must compile and boot by M2 so the trait stays honest.
+- **Objects (10, final):** Untyped, CapSpace, Thread, AddressSpace, Frame, Endpoint, Notification, SchedContext, Hw
+  (ports, interrupt lines, device identities, console, power: only ever narrowed), Vcpu (M9). Channels, ports,
+  timers and rings are userspace built from these.
+- **Untyped memory:** all memory reaches the root task as Untyped; every object is retyped from memory its caller
+  owns; no kernel heap. Revoking an Untyped destroys everything made from it, so accounting and kill are userspace.
+- **Capabilities:** a rights mask and, on endpoints and notifications, a badge set once by the minter and never
+  changed by a holder (so a provider trusts the badge as the caller's identity and scope). Derive makes a child with
+  equal or fewer rights; duplicate an independent sibling; move keeps the place. Deleting a capability deletes its
+  descendants; every step of delete and revoke is O(1) and preemptible. Each operation checks the rights the use
+  needs (`ThreadConfigure`, `Inspect`, `IrqBind`, `IrqWatch`: `kernel-core/tests/hostile.rs`). `CapNotice` tells a
+  holder when one of its capabilities goes, by whatever means, without a kernel table anyone can fill.
+- **Execution:** one guard-paged stack per processor, interrupts off, no blocking. Long operations (reaping a
+  CapSpace: every 256 slots; one `Map` or `Unmap`: at most `MAP_MAX_ENTRIES` = 2^15 entries) stop for a pending
+  interrupt and resume, so no single call holds the machine. The kernel never dereferences a user address. A
+  syscall preserves what a function call does and not the vector registers; `ThreadStart` resets the saved vector
+  state.
+- **IPC:** synchronous call/reply on endpoints with direct switch; up to 500 words and four capabilities, each lent,
+  duplicated or given (GRANT needed to send them). A call may carry a time limit (`CALL_TIMEOUT_SHIFT`): past it the
+  call fails with `Timeout` wherever it waits and a late reply goes nowhere. An operation is tied to the capability
+  it was made through: when that capability leaves its slot, the operation fails with `Gone` (revoking a client stops
+  it now). A receive may also listen on a notification (`MsgInfo::NOTIFIED`, which no message can imitate): the
+  one-thread event loop of every driver and server (`silica_rt::ipc::serve_events`). A received message's length is
+  checked against the words the kernel delivered.
+- **Memory:** faults are calls to the thread's fault endpoint (pagers in userspace). An address space pays for its
+  own page tables; tables whose mappings are gone return to its pool. `Unmap` of an address space (write right)
+  clears a range whoever's frames are in it, so a program can reuse addresses where lent memory was. No mapping is
+  writable and executable. No overcommit: allocation fails at the caller.
+- **Scheduler:** per-processor queues; a fair class (virtual runtime by weight) and a deadline class (admitted up to
+  90% of a processor, earliest deadline first). Processor time is a capability: a scheduling context is time on one
+  processor because a holder of that processor's time (`SLOT_SCHED`) made it so, a fair share divided equally among
+  the threads bound to it or a reservation. A thread runs only on a context it was bound to through a capability its
+  binder holds: a new thread has none and is refused `NoTime` until bound, and when a context's last capability goes
+  its threads stop. A program holds the context its parent gave it (`slots::SCHED`), so its threads take that one
+  share however many it makes (`a_program_with_many_threads_takes_one_share`); the root task's comes from the kernel.
+  The fair queue and the timers are AVL trees (`order.rs`), so a wake-up costs the same beside thousands of threads.
+  IPC donates the caller's share to the server. Tickless.
+- **SMP:** every thread has a home processor; moving it is explicit and invisible to it. One lock per processor:
+  local, pair (two processors in index order), structure (mapping), and global (every lock: capability slots,
+  unmapping, other processors' threads). Time holding every lock is the caller's to spend, like processor time: a
+  scheduling context's threads may hold them for a tenth of the machine's time divided among the processors
+  (`GLOBAL_SHARE`, after a 5 ms burst), charged for what it cost processors that had work; past it that context's
+  calls wait (`THROTTLED`) and nobody else's, so a program flooding capability operations stops neither the other
+  processors (`smp_global_flood`) nor a program beside it. A destroyed address space's memory is
+  reused only after every processor that had it loaded has left it. Every wait on another processor (its lock, an
+  answer to a kick, leaving a root) is bounded: past 10 s the kernel panics naming the processor (`stall_named`).
+  Modelled under `loom`.
+- **Boot:** the kernel checks the whole boot archive (CRC32C and every format rule, one reader shared with the image
+  builder) before starting the root task; a damaged archive runs nothing (`error.archive_damaged`). Secondary
+  processors are counted as they arrive, their TSC checked against the boot processor's. Machine checks are
+  handled (a program's uncorrected error is its fault); NMIs are counted. A panic stops every processor, writes a
+  crash record (the console's last lines, the panic, its backtrace) into memory the loader keeps across a warm
+  reset, and resets the machine through the power capability's register (ACPI's reset register, PSCI), or stops with
+  the record kept for the hardware watchdog to reset it; the next boot gives the record to the root task and the
+  service manager says it (`panic_reset`). The service manager alone pets the hardware watchdog, told by the device
+  manager's signal when its driver comes (no call, no retry), so a hung service manager or kernel is reset
+  (`watchdog`). The firmware's memory map is checked (overlaps resolved to the most restrictive kind, a
+  wrapping range refused by name, no framebuffer inside usable memory). The boot
+  is refused without a trusted entropy source unless the owner says `entropy=accept` (`cpu.no_rng`).
+- **Randomness:** every program has its own ChaCha20 generator with fast key erasure, seeded by its parent; the root
+  task's from the boot secret, which reaches it in registers and is kept only in its own memory (no frame it lends
+  holds it).
+- **Logs:** each service writes a ring of its own without waiting; `logd` keeps and shows them, and never waits on
+  the service manager. A service registers as many logs as its declaration says (`logs=`), named after itself; rings
+  whose maker ended are reclaimed. At shutdown `logd` drains its rings on `END` and exits, and the service manager
+  waits on that exit. Text shown on a terminal goes through `silica_rt::text::printable`.
+- **Providers that restart:** a service hears on its events notification when a provider it needs started again. A
+  service that `keeps` has a page kept across restarts and replaced with an empty one when its program changes
+  (the network stack's new program is also handed the old one's page read-only, to reset its peers). A client's
+  bound on a call is its own backstop: its expiry is that provider's failure for that client, and nothing else
+  acts on it. A deliberate restart is its own exit message (`AGAIN_LABEL`), never an exit status.
+  Services build with overflow checks in release, as the kernel does: arithmetic that would wrap stops the program,
+  and its supervisor starts it again. A program is told when its free memory falls below a mark it set
+  (`mem::watch_low`, looked at on allocation and release, never on a timer) and can give back its heap's spare.
+- **Console and power:** the kernel's console never waits for the port (a ring fed as the UART takes it; a piece
+  that does not fit is dropped and said). The power capability turns the machine off or resets it (PSCI; ACPI S5
+  and the reset register). The QEMU debug-exit port, and every other test hook of the kernel (`exit=`, `panic=`),
+  exist only in a test image's kernel (`harness`).
+- **Time:** a monotonic clock read in userspace; no timer object (a receive takes a deadline). The wall clock is a
+  page every program reads; only a service declared `sets_time` may write it. Readers give up on a writer that
+  stopped mid-update and report the time unknown.
+- **Interrupts:** bound to a notification and delivered on the processor of the thread waiting on it; the kernel
+  moves the line when that thread moves (remapping entry, I/O APIC, GIC route or ITS collection; `irq_follow`). A
+  level-triggered line is held off until acknowledged, and any line that fires again while its notification bit is
+  still pending is held off until its waiter receives (each notification keeps the list of its held lines, so a
+  receive releases its own and touches no other), so a storming device costs its driver and nobody else. A
+  line released goes to a discard vector, and a device's MSI-X table is masked and emptied before each new driver
+  starts. With interrupt remapping a device raises only the lines its
+  driver bound (`rogue_tcg`). A failed `IrqBind` leaves the old binding as it was. `IrqWatch` lets an idle processor
+  see a device's completion word before its interrupt; each line keeps its own watch.
+- **Placement:** work follows the request, not the service. A request stays on the processor where it arrives,
+  device interrupt to driver to stack to program, or at least in one cache domain: each crossing costs a wake-up
+  and cache misses. Throughput scales by a path per processor, not by moving services: `silica-queue` gives a
+  client a queue per processor it submits from, a device a hardware queue per processor where it has them, and the
+  completion's line follows its waiter. The management plane (service manager, log, device manager, remote
+  management) runs on a housekeeping processor, the data plane beside its devices. A declaration states a role and
+  a device to be near (`cpu=` pins only where a measurement says so); the service manager maps it onto the
+  machine's topology, which the kernel gives the root task in its start record. A balancer is an ordinary service
+  holding the processor-time capability: the kernel signals sustained imbalance as an event, and the balancer moves
+  scheduling contexts; nothing polls, so an idle machine wakes nothing. Mechanism only in the kernel (topology, the
+  imbalance event, lines following waiters); policy only in services. No placement file, boot parameter or tuning
+  knob, and no kernel thread: authority over processors is the processor-time capability and nothing else.
+- **Devices and DMA:** a device reaches exactly what is mapped in its device address space (`ASPACE_IO`), nothing
+  before it is attached and nothing after the space goes; `Unmap` returns after the IOMMU dropped the translation.
+  Confinement is for every device or none: a unit the kernel cannot drive makes it refuse every `DeviceAttach` and
+  say no device is confined. An unresponsive unit stops the machine naming it. A device's refused access is
+  reported once to whoever attached it (a notification and a count through `Inspect`), and the device is then held
+  quiet through its own context entry until that holder reads the count, so one device's refusals cost nobody
+  else's reports. A fault with no fault endpoint is kept in its thread; only the root task's is said on the console.
+  Without an IOMMU (`iommu=off`)
+  `DeviceAttach` is `Unsupported`, the boot says so, and starting a DMA-capable driver is trusting it (`unconfined`).
+- **Speculation:** an address space can be isolated (`ASPACE_ISOLATED`): switches into and out of it flush the
+  predictors and set STIBP and SSBD. A service declared `secrets` runs in one (`remote`, `entropy`); `Inspect`
+  reports it. Meltdown-affected processors are refused unless the owner says `meltdown=accept`.
+- **Inspection:** `Inspect` (read right) reads slots, threads, interrupt lines and parked calls; the owner's tools use
+  the owner's capabilities, and there is no kernel debugger with authority of its own. Counts kept only for tests
+  (interrupts delivered and from afar) exist only in a test image's kernel.
+- **HAL:** `kernel/arch/{x86_64,aarch64,riscv64}` behind one trait; aarch64 boots the same tests.
 
-Escape hatch: object set and rights are versioned in `libsys`; adding an object type is additive.
+**Programs.** A program is what its parent makes with `silica-proc` from one Untyped: CapSpace, address space, first
+thread, image and start-up record. It holds only what its parent listed, ends by telling its parent, and is taken
+back by revoking that Untyped. A failed spawn returns what was given outright. A supervisor answers a fault on lent
+memory the lender took back with a page of zeros, recycling a bounded pool, so a service never dies of a client
+ending (`lent_memory_taken_back_any_number_of_times`).
 
-**Programs.** The kernel has no notion of a process. A program is what its parent makes with `silica-proc`: one
-Untyped set aside for it, from which come its CapSpace, its address space, its first thread, its image, stack and
-start-up record, and (half of it) its own Untyped to allocate from. It starts holding the few capabilities every
-program has (itself, its memory, an endpoint to its parent) and the ones its parent listed, in the order listed;
-nothing is inherited and there is nothing ambient to find. It ends by telling its parent, and the parent takes
-everything back by revoking the one Untyped. Accounting, quotas and kill are therefore that Untyped
-(`silica_rt` documents the convention; the kernel enforces only the capabilities).
-
-**Calls between programs.** One IDL message is one kernel message: its bytes as message words, its capabilities
-moved with it. A generated client talks through `silica_rt::ipc::Channel` (an endpoint capability); a provider
-runs `silica_rt::ipc::serve` around the generated `dispatch`. The provider learns who is calling from the badge of
-the capability the caller was given, which the caller cannot change.
+**Calls between programs.** One IDL message is one kernel message. A provider learns who calls from the badge of the
+caller's capability, which the caller cannot change; scopes in the badge (`silica_protocols::scope`) say what of a
+protocol the caller may use.
 
 ## 7. Drivers
 
-Userspace processes. Each gets: MMIO Frame caps (and Hw caps for the I/O ports and interrupt lines the device needs), Notifications bound to its interrupts, an
-IOMMU domain, and nothing else. A driver host supervises and restarts them.
-Driver interfaces are IDL protocols per class (block, net, display, input,
-audio, usb-host, gpu).
+Userspace programs, each holding its device's identity, interrupt lines, configuration space read-only, its memory
+BARs and its own IOMMU domain, and nothing else. Class protocols per device class in IDL; a class framework holds
+what all drivers of a class share, so a driver holds only what is specific to its hardware.
 
-How a driver meets its device (the seam, `silica_driver`'s documentation is the contract): the device manager finds
-the machine's PCI functions (ACPI MCFG, configuration space), and starts a driver for each one it has a driver for
-as an ordinary program whose grants are, in order: the endpoint its clients call it on, its device's identity, its
-interrupt lines, its configuration space read-only, and one frame per memory BAR. Its arguments say which device,
-which lines, how far device addresses go, and how many times it has been started. The driver makes its own device
-address space from its own memory and attaches its device; until then the device reaches nothing. Configuration
-space belongs to the device manager, which switches on memory decoding, bus mastering and MSI-X before the driver
-runs and off when it ends: a driver cannot move its registers onto another device's. A driver that faults (its
-faults go to the device manager's endpoint) or exits with a failure is destroyed, its device silenced, and it is
-started again, at most three times, after which the device is left alone and the owner told (an owner's `restart`, through `silica.device.Manager`, is not counted). A client hears of its driver's end at once: `open` takes a notification the device manager signals when that driver ends, so a client sleeping on its device is not left waiting for a call to fail. `silica_block::client::Disk` uses it to survive its driver: it drains what the old driver completed, opens the new one, registers its memory again and sends again every request still in flight; to its program a driver's end is a delay of about a millisecond (blkload: nine kills under sustained writes, worst recovery 1.08 ms, every block verified on the host afterwards). The owner can put
-another program in a driver's place (`driver=<vendor>:<device>=<program>`), which is also how the test of what a
-driver cannot do runs: a hostile driver holding exactly what a real one holds.
-
-Display and input (the local console's two devices, `silica.display.Device` and `silica.input.Device`) follow the block class's rule that a client's data stays in the client's memory. A keyboard driver writes key records (USB HID usages, down or up) into a ring in a frame the client lends and signals it when it sleeps; layouts are the client's. A display driver shows pixels from a frame the client lends (`attach`) and is told which rectangle changed (`present`, with the rectangle's offset and stride in that frame); a framebuffer driver copies the rectangle into the scanout memory, and a driver whose hardware scans out of system memory (virtio-gpu's resources, a GPU's) need not copy at all. So no client ever maps memory of a driver's: a driver that ends takes nothing the client is using, and the client reattaches to its successor (the device manager's death notice) and presents everything again. The local console does exactly that for both, and its test restarts each driver under a running shell. An earlier version lent the framebuffer itself to the client, which then faulted on its next write when the driver ended: the shape was wrong, not the driver. Memory a peer lent and took back is answered with zeros by every supervisor, not only the device manager (`silica_proc::Child::answer_peer_fault`, used by the service manager too), as `silica_rt::mem` promises every program.
-
-The second block driver, NVMe (`system/drivers/nvme`, some 740 lines), was written by an agent from the published documentation alone (the rustdoc of `silica_rt`, `silica_driver` and `silica_block`, the protocol pages and this section) and passed the block tests at its first complete build. What it reported missing or ambiguous changed the interfaces, not the driver: a block driver can refuse a request it cannot express (`Refusal::Fail`; it had been signalling itself to fail one later), has a timer (`Device::deadline` and `timeout`, carried by `serve_events`' deadline; NVMe gives an I/O command 30 s, as Linux does, then ends and is restarted, which resets the controller), and has DMA barriers that are right on Arm (`dma::write_barrier`, `read_barrier`, `full_barrier`: `dmb oshst`, `oshld`, `osh`; the virtio queue read the used entry after the used index with no barrier at all). The documentation now states what the service checks before `start`, that `address` includes the offset, that DMA memory is contiguous and naturally aligned, how interrupts are numbered and that the MSI-X table is the framework's, what a 64-bit BAR looks like, how a driver ends, and a driver's `Cargo.toml`. The trial also found blkcheck never sent a request of more than one page, so a wrong scatter list passed; it now writes and reads up to 128 KiB starting part-way into a page (and a deliberately wrong PRP list fails it). It is tested on four controllers, blkcheck, the five faults and hot-plug on each new one (`nvme_machine` in `tools/lib/tests.sh`): QEMU's default; one MSI-X vector, both queues interrupting on it; 4 KiB blocks; and three namespaces, the first with metadata, where it serves namespace 2 and says why it leaves 1 and 3. Killed every 200 ms under blkload's flushed writes to an NVMe scratch disk (`recovery_nvme`), it recovered ten times, the slowest in 6.3 ms (the controller's reset is most of it; virtio-blk's is 1.08 ms), and the host found every block's last write on the disk. Until then a controller whose first namespace it could not serve was given up on three times and left alone, and on one vector it never committed an injected missed interrupt (its I/O interrupts arrived on the admin queue's bit), which the faults test could not see (below). Not yet: each namespace a disk of its own (the device manager's identity and endpoint are one per PCI function: a namespace needs a unit in `silica.device.Manager`'s identity, and the driver a block service per namespace), several I/O queues, the shutdown notification (drivers are not told of shutdown; data a client flushed is safe regardless).
-
-A device is assumed to misbehave in every way its interface allows, and the test of that commits the faults on purpose: `inject=<driver>:<fault>@<n>` on the kernel command line has the first run of a driver commit one at its `n`th request, at the boundary where the device would (`silica_driver::inject`; the virtio queue and the NVMe driver commit all five): a completion of a request never offered, a request the device never sees, an interrupt with nothing done, a completion without an interrupt, a device that resets itself. A block driver gives each request a timeout (30 s, Linux's; 1 s in a run with a fault armed) through the service's deadline; when it passes the driver looks once more for completions whose interrupt was lost, and otherwise ends, as it does on nonsense from the device. A driver that ends leaves what was in flight to the client, which sends it again to the driver started in its place: completing it as aborted would have turned a driver's restart into a failed request. The `faults` test runs blkcheck through each fault on each block driver (NVMe on each of its four controllers), and counts a fault only when the driver committed it (`inject: <fault> committed`, printed when `pending` hands it over; a fault that came due and was never taken passes nothing): every check passes, the three faults that cannot be absorbed cost one restart, the two that can cost none, and nothing outside the driver reports an error.
-
-The network interface class (`silica.net.Device`, `silica_net`) is the block class's shape on the same data path: a transmit names a frame in the client's memory and completes when it is sent; a receive offers a buffer ahead of time and completes with the length of the frame that arrived in it; a record with the tag `LINK` says the link went up or down. The virtio-net driver (one queue pair, no offloads yet) puts a 12-byte header of its own in front of each frame and nothing else of its own on the path: the device reads and writes the client's memory through the IOMMU. `netcheck` tests it against QEMU's user-mode network with frames built by hand (ARP for the gateway, 200 pings), before any network stack exists. Its benchmark (`tools/bench.sh`) runs both systems against one host program on a tap interface with vhost-net (`os/bench/net/echo.c`, spinning on a held processor of its own, sending back one EtherType and dropping another), with the network device doing its DMA through the platform's translation on both machines, as real PCI devices do (Linux's AF_XDP zero-copy needs it). First measurement, same host, two boots each: round trip 6.4 to 6.6 us median and 7.2 to 8.6 us p99, against Linux's 7.4 and 10.0 to 10.3 us (AF_PACKET, blocking); 3.65 to 3.77 million 1514-byte frames a second sent, against Linux's 2.89 million through AF_XDP zero-copy (1.82 million through AF_PACKET). Its recovery is tested as the disk's is (`netload`, `run_net_recovery`): eight pings in flight to the user-mode gateway while the device manager restarts virtio-net every 200 ms for 3 s; no transmit fails, the slowest of 14 recoveries took 2 ms, and no ping had to be sent again (QEMU holds frames for a device with no receive buffers; on hardware the frames that arrive while no driver runs are lost, and are the network's to lose). The hostile driver runs in its place too (`rogue_net`): the network device's receives into memory never mapped for it, or mapped for reading only, and its transmits from unmapped memory are refused by the IOMMU and logged, as the disk's are; the injected faults run under `netfault` (netload's source, restarting nothing): garbage, a frame never sent and a device reset end the driver once, a spurious or missed interrupt is absorbed, and every ping after the recovery is answered. Owed: the receive rate under a flood, checksum and segmentation offloads, several queue pairs, and a missed receive interrupt on a quiet interface (it waits for the next interrupt; the timeout covers only frames being sent).
-
-Devices come and go while the system runs (native PCI Express hot-plug, `devmgr`'s `hotplug`): the device manager arms every hot-plug capable port (its slot interrupts through the port's own MSI-X entry, on the device manager's one notification beside the power button), switches a slot's power on when a device arrives and waits for its link, gives the device's BARs addresses out of the windows the firmware left the port (a BAR at a multiple of its size; one that does not fit is reported with the windows as they are), and starts its driver; a request to take a device out (the attention button, which QEMU's `device_del` presses) ends its drivers and switches the slot off, after which it can be pulled. The `hotplug` test puts a disk in at runtime, runs blkcheck on it from the shell, and takes it out. Not yet: bridges and switches behind a slot (only the devices on the port's own bus), surprise removal without the button, and ACPI hot-plug (QEMU's default on q35, off in the test machine).
-
-The block path at depth 1 was taken apart on the host as well as in the guest: KVM's tracepoints for the doorbell (`kvm_fast_mmio`) and the injected interrupt (`kvm_msi_set_irq`) of one guest's QEMU give the device's own time per request, for either system. Two things on the host, in neither system, made the tail and most of the median. QEMU's I/O thread, left to the host's scheduler, landed beside whichever virtual processor it happened to (the other hardware thread of its core) and finished a request about a microsecond later while that guest spun waiting for it; this was the bimodal tail first blamed on the device, and it moved with the thread. And with event indices (`RING_EVENT_IDX`) QEMU cannot tell a guest that it is polling the ring anyway: every request rang the doorbell, a guest exit each (2,940 of 2,940), where with the ring's flag almost none do (17). The benchmark's virtual machine is therefore set up as a host tuned for its guests' disks would be (`tools/bench.sh`; `qemu.sh --emulator`, `--disk-props`): each virtual processor alone on a host processor, the I/O thread alone beside the last one, the host's file read through io_uring, the disk without event indices. Linux gains as much from it as Silica (depth 1: 5.4 to 3.4 us). In three boots of each on it: Silica 3.29 to 3.33 us (median) and 3.65 to 3.69 us (p99) at depth 1 and 781,000 to 790,000 reads/s at depth 32; Linux 3.44 to 3.47, 3.81 to 3.93 and 637,000 to 648,000. Silica's virtio driver takes event indices whenever a device offers them (the tests' disks do); whether to offer them is the device's choice. Where a client hands its driver a request and then waits for the answer, and where a driver hands its client completions and then waits for its next interrupt, the wake-up and the wait are one system call (`SignalRecv`, `libsys::signal_recv`; `serve_events` gives a handler's wake-up with its wait, `Disk::kick_wait`): a peer on the same processor runs at once rather than after the waker gives the processor up. Not yet measured against the numbers above.
-
-A completion reaches its driver without waiting for its interrupt (`IrqWatch`, `IrqQuiet`; `kernel-core/src/watch.rs`). Taken apart in the guest (blkcheck's stage line, 2026-11-23), a depth-1 read spent 2.9 us between the device finishing and its driver running, of which about 0.9 us was the interrupt's journey (the emulator's I/O thread, the host's interrupt path, the guest's entry), while the processor sat in its idle watch spinning anyway. A driver now says that its interrupt's news is a word the device writes first (virtio's used index): a processor with nothing to run, watching for work before it halts, reads that word too, and a change is delivered exactly as the interrupt would be. And it may name the bit that tells the device not to interrupt (virtio's `NO_INTERRUPT`), which from then on the kernel alone writes: set just before the processor watches, cleared under its lock the moment it stops, before it looks at the word once more, so the device is quiet only while someone is looking for it and a busy or halted processor is interrupted as before. An interrupt whose word did not change since the last delivery is dropped, so one completion wakes the driver once whichever way it arrives. Nothing spins that would not have spun: only an idle processor reads the words, for the length its watch has learned. The frames are named by the slots the driver named them with and looked at each time (as a thread's IPC buffer is), so deleting a frame costs nothing extra (the first version's check on frame deletion cost the page-fault path 12 instructions; with slots, every kernel path's count is unchanged). virtio-blk watches its queue and virtio-net its receive queue (watching the transmit queue saved nobody a wait and cost transmit throughput). Measured, bench configuration, five boots each: depth-1 reads 4.94 to 3.72 us median and 5.42 to 4.66 us p99 (Linux 5.15 and 5.63), confined 5.65 to 4.36 us, depth 32 507,000 to 541,000 a second, the network round trip 9.32 to 9.14 us; per stage, device to driver 2.8 to 1.9 us. Not yet: queues with event indices, where the device reads `used_event` (which the driver writes as it takes completions) rather than the flag, are watched but not quieted, so the interrupt after a watched completion still arrives and is dropped (about 0.5 us of a processor's time); NVMe's completion queue has no index to watch (its news is a phase bit in the next entry).
-
-Every driver is written natively in Rust against the class protocols. There
-is no wrapper, shim, or compatibility host for drivers from another operating
-system, now or later.
-
-Order: virtio (blk, net, gpu, input, console, rng, fs, sound) -> NVMe, AHCI,
-xHCI + USB HID + USB storage + USB audio, e1000e/igc, Intel HDA -> one Wi-Fi
-family and one real GPU family (chosen at M8).
-
-Consequence, accepted: hardware support is narrow by design. The project names
-one reference laptop and one reference server (chosen at M8) and supports those
-completely. The public vendor documentation and the open-source drivers of
-other systems are read as references for how the hardware behaves; their code
-is not imported.
-
-- Reason: restartable, sandboxed, and the kernel stays small.
-- Escape hatch: class protocols are stable IDL, so a driver can be rewritten or replaced without touching anything above it.
+- **The seam** (`silica_driver`'s documentation is the contract): the device manager owns configuration space and
+  switches decoding, bus mastering and MSI-X on before a driver runs and off when it ends or fails to start.
+- **Restarts:** a driver that faults or fails is destroyed, its device silenced, and restarted by
+  `silica_proc::Restarts` (at once, then backing off to one try a minute, never given up for good). An owner's
+  `restart` is not counted. A deliberate restart (`AGAIN_LABEL`) is not a failure, and a driver a client had opened
+  is started again at once.
+- **Clients survive their driver:** `open` takes a notification signalled when the driver ends; `silica_queue`
+  clients drain completions, reconnect without spinning, re-register memory and resend what was in flight. A client
+  that watches its class (`watch`) is told when the next driver is there and tries it then, never by the clock
+  (netd does; the block client still retries on a clock, owed). A flush
+  after a driver ended with unflushed writes reports them lost, so a program never believes them durable.
+- **One client keeps its device:** input, display and console port refuse a second `connect`/`attach` while the
+  first client lives (`in_use`).
+- **Devices misbehave:** a driver checks every completion, refuses queues too small for one request, watches
+  `DEVICE_NEEDS_RESET`, negotiates every feature it uses, gives requests the deadline its device's specification
+  states, waits on a register only through the framework's one helper, sleeping to that bound, and otherwise ends to
+  be restarted. Faults committed on purpose (`devmgr.inject=<driver>:<fault>@<n>`, `faults`) exist only in test
+  images (`harness`).
+- **Clients cannot break the device for others:** memory of a connection that ended stays mapped until its last
+  request completes; events never take a completion's ring slot; device addresses of released memory are reused.
+- **Hostile drivers:** `virtio-rogue` holds exactly what a driver holds and every attempt beyond it must fail
+  (`rogue`, `rogue_tcg`, `rogue_net`). Which program drives a device is the boot archive's drivers list to say,
+  checked with the image; a test image names the rogue there, and no boot word chooses a driver.
+- **Hot-plug:** the device manager arms PCIe hot-plug ports, powers slots, places BARs within the port's windows and
+  starts drivers, waiting for an arrived device's link on the port's link-state interrupt; removal ends them and
+  powers the slot off (`hotplug`).
+- Every driver is native Rust against the class protocols; no wrapper for another system's drivers. Order: virtio,
+  then NVMe, AHCI, xHCI/USB, e1000e/igc, HDA, then one Wi-Fi and one GPU family (M8). Hardware support is narrow by
+  design: one reference laptop and one reference server, supported completely.
 
 ## 8. Storage
 
-- The data path is one crate for every device class (`silica_queue`): the two rings in a client's frame, the client's registered memory, the wake-up rule, the provider's session and a client that survives its provider (re-registering memory and resending what was in flight). A class adds only its records, the checks of a request against its device, and its control protocol; block was moved onto it when network became its second user.
-- **The block server** (`partitions`, `silica.block.Partitions`) is on the way to a partition, not on the way of its requests: it reads each disk's GPT once (both checksums checked), and `open` asks the disk's driver for a capability narrowed to the partition (`silica.block.Device`'s `narrow`: any holder may narrow what it holds and hand it on; the driver's service keeps one window per narrowed capability, numbers the partition from 0, and refuses anything past it). A client then talks to the driver directly, as to a whole disk, through the same rings; the driver serves up to 16 clients at once (`silica_queue::provider`). A partition is opened through the block server as a disk is through the device manager (`silica_queue::client::Opener`), so its client survives a driver's end the same way. Measured cost per request: none (the request path is the whole disk's). `partcheck` checks size, offset, confinement and placement of a write. A request whose tag has bit 62 set is traced: the driver's service stamps when it took it, when the device accepted it and when it completed, keeps the last 16, and answers `trace(tag)` to the client that made it; the shell's `trace` opens the first partition through the block server and shows one read's way through client and driver (M3's "traced across client, block server and driver": the block server is on the way to the partition, which the trace shows as the open, not on the way of the request).
-- Block layer server with request rings. The class protocol (`silica.block.Device`, every block driver's and, for each partition, the block server's) carries only the control path as calls: what the device is, connecting, registering memory. Requests and completions travel through two rings in a frame the client shares (`silica_block` documents the layout), and their data stays in the client's frames, which the device reads and writes in place through the IOMMU: no copy between a filesystem and the disk, and a system call only when the other side said it sleeps. `silica_block::service` is everything a block driver shares (checking each request against the device and the registered memory before the driver sees it, the rings, the wake-ups, a client that went away), so a driver is what is specific to its hardware: virtio-blk is about 250 lines. A driver never trusts the rings' memory: a client that takes it back makes the driver read zeros (the device manager answers that fault with a zero page), which the ring reports as broken and the connection closes; no client can crash a driver.
-- Native filesystem: copy-on-write, checksummed data and metadata, snapshots, transactional. Design is a simplified B-tree CoW layout; no in-kernel anything.
-- Read-only content-addressed package store (Merkle-verified blobs).
-- FAT32 (ESP, removable media), exFAT, and read-only ext4 and ISO9660 for interchange. These are native filesystem readers, not compatibility layers.
-- Partitioning: GPT only.
-- Full-disk encryption (AEAD per extent), key from TPM2 or passphrase.
-- Verified boot: UEFI Secure Boot -> signed kernel -> Merkle-rooted system image. A/B slots with automatic rollback.
+- One data path for every device class (`silica_queue`): two rings in a client's frame, data in the client's own
+  memory read and written in place by the device through the IOMMU, a system call only when the other side sleeps.
+  A dropped client ends its connection.
+- **The block server** (`partitions`) is on the way to a partition, not on its requests: it reads each disk's GPT
+  (both checksums, in transfers within the device's limits), re-reads it when a disk's driver changes, and `open`
+  returns a capability narrowed to the partition. It serves from its start with the disks it has; a client that needs
+  a disk still on its way waits on the device manager's `watch`. Narrowed windows are deduplicated by range and
+  bounded per holder; a flush through a partition flushes only when a write needs it. Its scopes: `list`, `open`.
+- Planned (M5): a copy-on-write checksummed native filesystem, a content-addressed package store, FAT32/exFAT and
+  read-only ext4/ISO9660 readers, GPT only, AEAD full-disk encryption keyed by TPM2 or passphrase, verified boot with
+  A/B slots and rollback.
 
 ## 9. Networking
 
-Userspace stack, one process per interface class, zero-copy rings to drivers.
-IPv6-first with IPv4. TCP (with modern congestion control), UDP, QUIC as a
-system service, ICMP, NDP/ARP, DHCPv4/v6, SLAAC, DNS resolver with DoT/DoH,
-mDNS, TLS 1.3 only, NTP client with NTS, firewall as capability policy plus a
-packet filter, WireGuard, Wi-Fi (WPA3) via supplicant service.
+A userspace stack (`netd`, wire formats in `silica-inet`: parsers over `&[u8]` that check every length and checksum
+and allocate nothing). IPv6-first with IPv4; planned: UDP for programs, QUIC, DNS with DoT/DoH, TLS 1.3 only, NTS,
+a packet filter, WireGuard, Wi-Fi.
 
-Built so far (M4's first slice): `netd`, a boot service, takes the machine's network interface, gets it an IPv4 address by DHCP and keeps it, answers ARP and ping, and pings its router once bound (`run_dhcp`: QEMU's user-mode server gives 10.0.2.15/24; the router answers in about a millisecond). Its pieces are where they can be tested without a machine: the wire formats are `silica-inet` (Ethernet, ARP, IPv4, ICMP, UDP, DHCPv4: parsers over `&[u8]` that check every length and checksum and say why they refuse, builders into a given buffer; no allocation, no `unsafe`), fuzzed as one chain from the Ethernet header down (`frames`), and the DHCP client is a state machine there that is given the time and what arrived (discover, offer, request, renewal to the server at half the lease, rebinding to any at seven eighths, the address given up at its end; retransmission 4 s doubling to 64 s, a second either way at random), tested for each path. Three decisions underneath. A frame is copied once out of the memory the device wrote and parsed from the stack's own copy: the device is driven by a program the stack does not trust and may go on writing that buffer, so parsing in place could read two different packets (one copy of at most 1,514 bytes a frame, `Mmio::read_bytes`, is what that costs). A network interface has one client (`Session::exclusive`; a second `connect` is refused `busy`): the device puts each arriving frame in whichever client's buffer comes next, so two clients silently lost each other's frames (seen: `netcheck` beside `netd`). And a program waiting for a device is told when one gains or loses a driver (`silica.device.Manager`'s `watch`) instead of asking again: a machine without a network card wakes `netd` never, and a hot-added one is found at once. An interface whose driver cannot be talked to is waited out, not given up on (`rogue_net`: `netd` says why and waits for the driver to change). A raw driver's own check boots without the stack (`off=netd` on the command line, which keeps any boot service off).
-
-TCP for programs (`silica.net.Tcp`, provided by `netd`; `silica_net::tcp` is its client, `httpd` its first program). The calls are the control path: a program lends the stack memory of its own once (`add_memory`), listens, accepts and connects, and lets go. Bytes travel in two byte streams per connection (`silica_rt::ring`'s `StreamProducer` and `StreamConsumer`: positions modulo twice the capacity, so one block of 2^k bytes holds both headers and both data areas with nothing over; each side signals the other only when it said it sleeps, for bytes and for room) in a block of that memory the program names when it accepts or connects. Three decisions underneath. A program's memory is mapped once, not per connection: lent memory is mapped where addresses are never reused (a stale mapping can only read zeros), so mapping per connection would spend address space for ever, about four million connections in all, and a map and an unmap per connection. Bytes are copied once each way between a program's stream and the connection's own buffers, as Linux copies between user memory and a socket's: the program may go on writing its memory, so the stack never sends from it in place (sending in place is owed, G14, and needs TCP's buffers to be volatile shared memory). And the stack never waits on a program: `accept` answers `would_block` and readiness comes as a signal, listeners and connections belong to the caller that made them (another program naming one gets `no_such`), a connection's buffers are allocated fallibly (a peer opening connections makes the stack refuse more, with a reset, never fail: an infallible allocation once panicked the stack under load), and its own wait is one: the interface's queue on bits 0 to 7 of the stack's notification (`Queue::open_on`), bit 8 the kernel's notice that a program using TCP ended, the programs' connections on the rest, calls on its endpoint, all through `serve_events`. A program that ends is let go of at once: the stack watches the notifications it gave for its listeners and connections (`CapNotice`; a mapped Frame cannot be watched, its slot links its mappings), and when one goes it drops that program's listeners, resets its connections and lets go of its memory, so its port is free for its next instance (a `restart` or an `update` of a TCP server once left it refused for good, its old memory still registered: found by the remote management test, 2026-11-24); a second `add_memory` under the same badge is a new instance of that service and is taken the same way. Closing is a socket's on Linux: a program that ended its transmit stream and left nothing received unread gets its last bytes sent and then the FIN, even when it closes the moment it finishes (`close` takes what the stream still holds, or answers `would_block` while the peer's window is shut, and `silica_net::tcp` asks again when the stack signals it took the last byte); a connection in TIME-WAIT gives its buffers back at once (`Connection::shed`), since it only answers a repeated FIN, so a server that closes first holds a small record per peer for the minute, not 64 KiB. Its buffers come from the heap's shared chunks (blocks up to 64 KiB are cut from them as small ones are), not a frame apiece: two capability slots a buffer had run the stack's 1,024 slots out at about 240 connections. Interop with the host's own Linux stack over a tap (`run_interop`): eight cases (a large transfer, a slow reader that shuts the window, pipelining, a request a byte a segment, a half-close, a reset mid-answer, 64 connections at once) on a plain path, with the host's route advertising a 536-byte MSS and an 8 KiB window, and with 2% loss, 1% duplication and 10% reordering each way; all pass, and found the four defects above. Under those impairments 16 MiB took 22 s with NewReno. The sender now records the send time and delivery state of up to 64 segments, detects holes from SACK delivery order and elapsed time, and probes an unanswered tail. The first repair goes immediately on entering recovery. A connection's send buffer starts at 32 KiB and doubles, up to 128 KiB, whenever it is what holds the connection back (all of it in flight, the peer's and the congestion window open: `Connection::buffer_limited`) and its program has more to send, as Linux sizes a socket's from its congestion window; the bytes grown across the stack stay under 4 MiB, so peers opening windows on many connections cost a bounded amount, and an allocation refused leaves the buffer as it was. Beyond 128 KiB the scoreboard's 64 segments bind first. A fixed 32 KiB had two costs: a path whose window outgrew it ran at 32 KiB a round trip (4 MiB over a 10 ms round trip, host model: 1,305 ms, grown 495), and when a repair was lost with the whole buffer in flight nothing could follow the repair to show it lost, so the 200 ms retransmission timeout fired with 23 of 24 segments SACKed (host model: 227 ms and a timeout, grown 20 ms and none). Reordering is learned, not paid for: RFC 8985 grows its reordering window by min_rtt/4 a DSACK, and on a path where a tenth of the segments overtake the rest by a millisecond, both ways, the smallest round trip is a segment and its ACK that both overtook (145 us of a 2 ms path), so the window needed about 28 resent segments, each a window reduction, before it covered the path; capped at 16 steps it never did (76% of losses were declared with a window under a millisecond, and 63 to 511 of a 4 MiB run's retransmissions were of segments that had arrived). The window is now at least how late a segment sent once was seen to arrive behind one sent after it, measured as it happens (Linux keeps the like in packets, `tp->reordering`), capped at the smoothed round trip and forgotten after 16 recoveries without a sign of it; the steps go to 255 as Linux's. A reduction whose resent segments the peer all reports having had already (DSACKs, RFC 3708) is undone once its recovery ends (Linux's `undo_retrans`); a DSACK below where the reduction began, or with none of its resent segments outstanding (a duplicate the network made), counts for nothing. Round trips come from the send times the scoreboard keeps (Karn: not over a resent segment), the echoed timestamp only when there is none, as Linux's `tcp_ack_update_rtt`: the timestamp ticks in milliseconds. Host model, 4 MiB through the interop path's impairments: 0.26 to 0.41 s (was 0.30 to 0.80), 3 to 45 redundant retransmissions (63 to 511); with the reordering and no loss, a clean path's time. On the tap, 16 MiB with 2% loss, 1% duplication and 10% reordering each way takes 1.62 to 1.90 s in five runs of six (2.85 in one), 255 of 12,500 segments resent, none a timeout's; Linux to Linux on the same impairments takes 4.22 to 5.71 s in ten runs (161 to 203 recoveries, 1 or 2 timeouts in nine), measured with two namespaces on a veth, offloads off and `gso_max_segs 1`: Linux's TCP builds segments into GSO bursts whatever the device says, netem then drops, delays and reorders a burst of up to 44 segments as one, and without that limit Linux took 0.06 to 1.9 s on what is not the guest's path. One kept-alive connection carries 4 GiB + 16 MiB across the sequence-number wrap, every byte checked (`sequence_wrap`, plain path, 9.9 s). Measured (`run_http`, QEMU's user-mode network, 2 processors): 10,000 requests of 1 KiB to 1 MiB over 64 kept-alive connections, every body byte checked, 0 errors, 2.33 GB in 7.6 s. The stack restarted under that load (`run_http_restart`: 6,000 requests, the stack restarted at the shell after 2,000): every connection then open reset at once (its records in the kept page), the program listening again on the new stack (its events), the network driver started again to take back the receive buffers of the stack that ended (a device holding a gone client's buffers swallows the next client's first frames, its ARP answer among them: `Device::forget_client`), the lease held from before; in six runs of six, 20 to 24 connections failed, no answer was wrong, and the longest time with no answer was 7 to 14 ms. The interface's offloads are used (`silica.net.Device` version 3, 2026-11-24): an interface says in `Info::offloads` whether it sums a transmit's checksum and cuts TCP over IPv4 frames up to `segment_bytes`, a transmit request asks for either in the spare bytes of its record (the class framework refuses what the interface did not offer and any position outside the frame, for every driver at once; fuzz target `requests`), and netd gives each connection what its interface does (`Connection::set_offloads`): segments then carry only the pseudo-header's sum, and a connection may give a segment of up to 45 MSS (`burst`: bounded by the windows and by free scoreboard records, one record a segment as cut, so SACK and RACK judge each piece). netd writes the headers and the segment straight into a transmit buffer, one of four 64 KiB burst buffers in a second memory for a segment to cut, and holds a connection back while no buffer is free (dropping it was TCP's loss to repair; looking again at once starved the driver of the processor it needed to give one back). virtio-net negotiates CSUM and HOST_TSO4 and writes one header per transmit slot; e1000e says it offloads nothing until its context descriptors are written (MILESTONES.md). Host model with a device that cuts, all bytes checked: a 4 MiB transfer gives the interface 147 segments where it gave 2,968, in the same time; on the interop path 64 connections at once take 20 ms (37 before) and the 4 GiB sequence-wrap case 2.8 s (10). A segment the tap passes to the host as one GSO packet is judged whole by netem, as Linux's are: the lossy case's times from here on (562 to 703 ms) compare with Linux's 0.06 to 1.9 s, not with its one-segment-per-skb runs. Measured from the host with tcpbench, untimed, 2 processors: HTTP p50 80.8 us (Linux 101.5), p99 197 (176.6); the guest's processors per GiB at 200 MB/s 3.09 s (Linux 0.87), at 50 MB/s 3.83 s (1.07). Not yet: UDP for programs, receive offloads, and each wake-up looking at every connection rather than those whose bit was signalled.
+- **DHCP** is answered only from the chosen server and leases that cannot be used are refused. **ARP** learns only
+  what it asked and never evicts the router for a stranger. **SNTP** asks with a random nonce from a random port and
+  believes an answer only when its times are possible, its round trip is under 1 s and, once set, it moves the clock
+  under 1000 s. A lease that changes ends the connections on the old address.
+- **TCP for programs** (`silica.net.Tcp`): a program lends memory once and names a block of it per connection; bytes
+  travel in two byte streams in that block. What a program may do is in its capability, from its declaration: the
+  one port it may listen on (`listen=<port>`, `listen_given` names none) and whether it may connect out (`connect`);
+  a port is the owner's to give, never the first claimant's, one declaration's alone (the service manager refuses a
+  list that gives it twice), and anything else is refused `not_granted`. The stack never waits on a program;
+  connections belong to the program that made them until TCP is done with them, a closed one included, and end when
+  it does. A program has as many connections as the memory it lent pays for (one per 64 KiB, kept for it out of the
+  256 the stack's own memory holds); a listener's unfinished handshakes are its own, and its full backlog evicts its
+  own oldest; TIME-WAIT holds a small record restarted only by the peer's own
+  FIN; FIN-WAIT-2 ends when nobody holds the connection and the peer is silent; timestamps do not reveal uptime; a
+  receiver that answers zero-window probes is kept while its program holds the connection, and given up on after as
+  many probes as a segment is sent again once it does not. Transmit rotates between connections, connections with
+  work are marked due and segments find their connection through an index. The device's transmit offloads are used
+  where offered (`silica.net.Device` version 3). A stack whose program is replaced (restart, `update`, `revert`)
+  resets the old one's peers from the records the old one kept. When its interface's driver ends, the stack hears
+  from the device manager (`watch`) when the next is there.
+- Tests: `inet/tests/tcp.rs`, fuzz targets `frames` and `tcp_peer`, the interop suite against the host's Linux stack
+  over a tap with hostile cases (`interop`: forged ARP, SYN flood, TIME-WAIT churn), `tcphog`, `http_load`,
+  `http_restart`, `ntp`, `dhcp`.
 
 ## 10. Graphics and the desktop
 
-- The display class protocol (section 7) already has the compositor's shape: pixels in the client's memory, damage rectangles, no client mapping a driver's memory.
-- Display server and compositor are one process. Protocol is a small native IDL protocol modeled on Wayland's object model (surfaces, buffers, frame callbacks, damage).
-- Rendering API for apps: Vulkan-shaped. `wgpu` is the supported Rust API on top.
-- M6 ships a **software** renderer (SIMD, tile-based, damage-tracked). Glass effect = dual-Kawase blur on downsampled backdrop + tint + noise + specular edge, cached per damage region. This runs on virtio-gpu 2D scanout and on bare GOP framebuffers.
-- GPU acceleration arrives at M8 via virtio-gpu Venus first, then one native driver.
-- Toolkit: retained-mode, declarative, GPU-agnostic scene graph; text via a Rust shaping + rasterization stack; accessibility tree mandatory in the widget trait from the first widget.
-- Reason for software first: the UI is testable by screenshot in QEMU on day one, and no GPU driver sits on the critical path.
+- The display class already has the compositor's shape: pixels in the client's memory, damage rectangles.
+- Display server and compositor are one process, with a small native protocol modelled on Wayland's object model.
+- Apps render through a Vulkan-shaped API (`wgpu` on top). M6 ships a software renderer (SIMD, tiled,
+  damage-tracked) so the UI is testable by screenshot in QEMU without a GPU driver; GPU acceleration at M8
+  (virtio-gpu Venus, then one native driver).
+- A retained-mode toolkit with an accessibility tree in the widget trait from the first widget.
 
-## 11. Software platform (no Unix, no shims)
+## 11. Software platform
 
-Software is written for this OS. Nothing emulates POSIX, Linux, Wayland, or
-any other system. Other languages are supported by making this OS a real
-target for them, in four layers:
-
-1. **One system interface, described once.** Every service is an IDL protocol. The IDL compiler generates bindings for Rust first, then C, C++, and further languages. A language talks to the OS directly through generated bindings.
-2. **A C-ABI system library.** `libsys` plus the generated C bindings expose the native API (capabilities, endpoints, IDL protocols) in the C calling convention, which nearly every language runtime can call. It exposes this OS's concepts only: no file descriptors, no `fork`, no signals, no `errno`, no POSIX names.
-3. **One LLVM target.** A target triple and a minimal freestanding C runtime (memory, math, startup, unwinding) give Rust, C, C++, Zig and Swift as native compiled languages. Each language's standard library gets a backend written against the native API.
-4. **WebAssembly components.** The WASI component model is the route for Python, JavaScript, Go, C# and other managed languages, and the portable sandboxed app format. Its handles map one-to-one to capabilities.
-
-Consequences, accepted:
-
-- Existing Unix, Linux and Windows software does not run and is not ported by emulation. Software that depends on POSIX must be adapted to the native API by its porter.
-- Browser: Servo, ported natively (Rust), at M7. Chromium is out of scope.
-- Games: written for this OS against the native Vulkan-shaped API.
-- Virtualization (`Vcpu`, M9) exists as a server feature for running guest operating systems in isolation. It is not a compatibility path and no desktop feature depends on it.
+Software is written for this OS; nothing emulates POSIX, Linux or Wayland. Languages reach the OS through:
+(1) IDL-generated bindings, Rust first; (2) a C-ABI `libsys` exposing only this OS's concepts; (3) one LLVM target
+with a minimal C runtime (Rust, C, C++, Zig, Swift) and standard-library backends on the native API; (4) WebAssembly
+components (WASI) for managed languages, handles mapping one-to-one to capabilities. Browser: Servo, natively (M7).
+Virtualization (`Vcpu`, M9) is for isolated guests, not compatibility.
 
 ## 12. Languages, crates, license
 
-- Rust, pinned nightly in `rust-toolchain.toml`. `no_std` in the kernel. Kernel logic lives in a `kernel-core` crate with no arch dependencies so it compiles and tests on the host.
-- External crates are vendored (`cargo vendor`) and must be on this allowlist. Kernel: `bitflags`, `spin` (early boot only), `zerocopy`, `static_assertions`, `log`. Userspace: `hashbrown`, `smoltcp` (as a starting point for the stack; may be replaced), `rustls` + `ring` or `aws-lc-rs`, `wasmtime` or `wasmi`, `ttf-parser`, `rustybuzz`, `tiny-skia` (reference renderer for golden tests only), `serde` + `postcard`, `wgpu` (M8). Dev/test: `proptest`, `loom`, `kani-verifier`, `arbitrary`, `libfuzzer-sys`, `criterion`.
-- Before adding a crate, measure its size cost and check its license; record both in the commit that adds it and extend this list.
-- License: dual MIT / Apache-2.0. Permissive so vendors can ship it; governance and a trademark, not copyleft, protect the project.
+- Rust, pinned nightly in `rust-toolchain.toml`; `no_std` in the kernel; kernel logic in `kernel-core`, testable on
+  the host.
+- External crates are vendored and on this allowlist. Kernel: `bitflags`, `spin` (early boot only), `zerocopy`,
+  `static_assertions`, `log`. Userspace: `hashbrown`, `smoltcp`, `rustls` + `ring` or `aws-lc-rs`, `wasmtime` or
+  `wasmi`, `ttf-parser`, `rustybuzz`, `tiny-skia` (golden tests only), `serde` + `postcard`, `wgpu` (M8).
+  Dev/test: `proptest`, `loom`, `kani-verifier`, `arbitrary`, `libfuzzer-sys`, `criterion`. Adding one records its
+  size cost and license in the commit and extends this list.
+- No `unsafe` outside `spec/UNSAFE_MODULES.md`. No Python anywhere.
+- License: dual MIT / Apache-2.0.
 
 ## 13. Security baseline
 
-Capabilities everywhere. W^X enforced by the kernel. KASLR and userspace ASLR.
-SMEP/SMAP/UMIP, CET shadow stacks and IBT where present (PAC/BTI on arm).
-Speculative-execution mitigations chosen per CPU at boot: enhanced IBRS and BHI_DIS_S where the processor has them, buffer clearing (VERW) on return to user mode where it is affected by MDS or RFDS, a barrier after every conditional `swapgs`; there is nothing to sanitize for Spectre v1 because the kernel takes no user pointers. A processor that would need retpolines or kernel page-table isolation (no enhanced IBRS, or affected by Meltdown) is reported at boot as unprotected and is not supported hardware. DMA confined by the IOMMU on every machine that has one; a machine without one is named as such at boot and its
-DMA-capable drivers are trusted (section 6). One kernel stack per processor with a guard page (section 6). No
-`unsafe` outside the modules listed in `spec/UNSAFE_MODULES.md`. Measured
-boot into TPM2. Per-app sandbox is the default, not an option.
+Capabilities everywhere; W^X; KASLR and ASLR; SMEP/SMAP/UMIP, CET and PAC/BTI where present; speculative-execution
+mitigations chosen per processor at boot (section 6). DMA confined by the IOMMU (section 6). Measured boot into TPM2
+and per-app sandboxes by default (M5). The threats each boundary must withstand are the invariants above, each tested
+by attacking it.
 
 ## 14. Observability and operations
 
-Structured logging service, tracing with static tracepoints, per-process-tree resource
-accounting, crash dumps to a dedicated partition, a kernel debugger stub over
-serial, remote management over an authenticated native protocol (the SSH
-equivalent), service manager with dependency graph and restart policy.
+Structured logs, static tracepoints (`trace` across client, block server and driver), `log` and `caps` in the shell,
+crash dumps (planned), and a service manager with a dependency graph and restart policy.
 
-**Remote management** (D21, `remote`; `silica.remote.Session`'s page is the wire). A machine is managed from
-another by calling its own protocols, not by typing into a terminal: a session carries the IDL requests a local
-program would make to the service manager (`silica.system.Manager`) and the log (`silica.log.Reader`), so what the
-console's shell can do a script or an agent on another machine can do, typed and versioned, and the owner's tool
-(`silica-remote`, os/host-tools) is one client of the generated bindings among others. The session is a Noise IK
-handshake (`Noise_IK_25519_ChaChaPoly_BLAKE2s`, the primitives WireGuard uses: `silica-crypto`, checked against
-RFC 7748, 8439 and 7693 and byte for byte against cacophony's Noise vectors): one round trip, the owner's key sent
-encrypted to the machine's in the first message, so the machine answers nobody it does not know and an observer
-learns neither who connected nor what they did; no algorithm negotiation, so nothing to downgrade. SSH was the
-spec's first answer and is not the shape: it carries a terminal for a human, and its negotiation, user
-authentication and channel layers are most of what an SSH server is. An SSH front for existing tooling is owed,
-not the base. The machine's key and its owners' public keys come with the image, as an installer provisions them
-(the boot archive's `remote.key` and `remote.owners`, given to the service alone through the manifest's `files=`);
-without them the service says so and ends. Each owner is named in the log at every session and every call that
-changes the system (stop, start, restart, update, revert, shutdown). What a session may do is what the service's
-capabilities allow, which today is all of the manager: narrower grants per owner are owed. The test
-(`run_remote`) lists, describes, reads logs, restarts a service, updates httpd while it serves and checks the
-program by hash, has a program that is no program refused and a faulting one undone, reverts, refuses a
-stranger's key and a wrong machine key, and shuts the machine down, all from the host. Owed: the machine's key
-made on first boot and kept on its storage, sealed by the TPM (M5), instead of coming with the image; several
-calls in flight; an SSH front.
-
-**Updates while running.** The service manager runs a service on a program it is sent (`stage`, piece by piece
-into its own memory, so it never reads memory a caller could take back while it reads: it has no supervisor to
-answer that fault; then `update`): the program is checked as an ELF image for the machine, the service ended
-and started on it, and the program it ran before kept. If the new one cannot start, or fails within 10 s of
-starting, the one before is put back and started by itself, and the log says why; `revert` goes back to the boot
-archive's. `list` shows each service's program by its BLAKE2s-256 and whether it came by an update, which the
-owner's tool compares with what it sent. An update lives in memory until the system has storage to keep it (M5).
+- **Remote management** (`remote`, `silica.remote.Session`): a session carries the IDL requests a local program would
+  make to the service manager and the log, so a script or agent elsewhere can do what the shell can. Noise IK
+  (`Noise_IK_25519_ChaChaPoly_BLAKE2s`, `silica-crypto`, checked against RFC and Noise vectors), no algorithm
+  negotiation. An owner's first message carries a stamp newer than its last, so a replayed handshake opens nothing;
+  only whole messages keep a session alive, for as long as that owner's line of `remote.owners` says
+  (`idle=<seconds>`, an hour without); unproven connections get eight places, two per address, 10 s; each owner holds
+  its own scopes, and what it sends for an update in remote's memory, bounded per owner. Keys and secrets are wiped
+  after use. The machine key ships in the image today; made on the machine at first boot is owed with storage (M5).
+- **Updates while running:** the caller writes the program into memory the service manager lends it (`program`),
+  and `update` runs the service on it once checked as an ELF image; the service manager holds no one's program
+  before that. A new program that fails before it serves (its runtime signals when it first waits for requests) is
+  replaced by the one before, however long it ran; one that has served is the service's program. `revert` returns to
+  the boot archive's; `list` shows each program's BLAKE2s.
+- **Service manager scopes** (`silica.system.Manager`): `observe`, `control`, `update`, `power`, `logs`, carried in
+  each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them).
+- **Server image:** `build_server_image` holds init, the boot services and the drivers, built without the `harness`
+  feature, and nothing that tests the system: `server_image` boots it with every test hook's words on its command
+  line and fails if one is obeyed or present in its files.
 
 ## 15. Driver porting method
 
-Drivers are translated into native Rust, never wrapped. The goal is the same
-throughput and latency as the best existing driver for that device.
+Drivers are written natively, never wrapped; the goal is the throughput and latency of the best existing driver.
 
-1. **Reference.** Pick the best open driver for the device from any system, plus the vendor's public documentation. These describe how the hardware behaves.
-2. **Behavior description.** Read the reference and write `drivers/<name>/BEHAVIOR.md`: register map, initialization sequence, queue and interrupt model, power states, error recovery, known quirks. Register definitions go in a machine-readable file from which accessor code is generated.
-3. **Implementation.** Write the Rust driver from the behavior description and the class framework, with the reference closed. This keeps the driver idiomatic to this OS instead of a line-by-line copy of another system's structure.
-4. **Class framework.** Everything common to a device class is written once in `drivers/framework/<class>`: queue management, DMA mapping, interrupt handling, power transitions, reset and recovery, statistics. A driver contains only what is specific to its hardware. Target: a new driver in an existing class is under 3,000 lines.
-5. **Performance by design.** Direct MMIO mapping; shared-memory rings with zero copies between driver and its consumer; batching; interrupt mitigation with a switch to polling under load; per-queue threads pinned to cores; huge-page DMA pools. A driver and its immediate consumer (NIC and network stack, NVMe and block server) may be linked into one process when measurement shows the IPC hop matters; the class protocol stays the same either way.
-6. **Verification against the reference.** For each driver: (a) run the reference driver and ours against the same device (emulated first, real hardware at M8), record the register traces, and compare initialization and steady-state sequences; (b) fault injection through the mock-device framework; (c) benchmark against the reference on the same hardware. Gate: at or better than the reference on throughput and p99 latency, or the driver is not done.
-7. **Order of work.** Standard class drivers first (one driver covers every conforming device), then the parts of the two reference machines, then by community demand.
-8. **Finished.** A driver that passes its happy path in QEMU is a prototype. A finished driver negotiates features, handles every feature it accepts and relies only on behaviour the specification guarantees, because an emulator is more forgiving than hardware. It recovers from device errors, timeouts and resets, and a request outstanding during a restart completes or fails cleanly with nothing leaked. Its DMA is confined by the IOMMU and it holds no authority beyond its device. Its throughput and tail latency meet the gate in item 6. It reports link, media, error and statistics state in a form the owner can read. Where only emulated devices were available, the driver's documentation names the device models it was verified against and what still needs a physical machine; that is not described as hardware support.
+1. **Reference:** the best open driver for the device and the vendor's public documentation.
+2. **Behavior description:** `drivers/<name>/BEHAVIOR.md`: registers, initialization, queues and interrupts, power,
+   error recovery, quirks; registers in a machine-readable file that generates accessors.
+3. **Implementation** from the description and the class framework, the reference closed.
+4. **Class framework** holds everything common to a class; a new driver in an existing class is under 3,000 lines.
+5. **Performance by design:** direct MMIO, zero-copy rings, batching, interrupt mitigation with polling under load,
+   per-queue threads, huge-page DMA pools; a driver and its consumer may share a process when measurement says so.
+6. **Verification:** register traces against the reference, fault injection, and a benchmark on the same hardware:
+   at or better than the reference on throughput and p99, or the driver is not done.
+7. **Order:** standard class drivers, then the reference machines' parts, then demand.
+8. **Finished:** negotiates features, handles every feature it accepts, relies only on what its specification
+   guarantees, recovers from errors, timeouts and resets with nothing leaked, holds no authority beyond its device,
+   meets item 6 and reports its state to the owner. A driver verified only on emulated devices says which.
 
 ## 16. System management
 
-How the system is installed, composed, updated and extended. The rule
-throughout: nothing mutates shared global state, so nothing can break
-something else.
+Nothing mutates shared global state, so nothing can break something else.
 
-- **Base system.** One read-only, signed, verified image containing the kernel, core services and system libraries. Updated as a whole into the inactive slot, switched atomically, rolled back automatically if the new slot fails to boot healthy.
-- **Packages.** Everything outside the base, including apps, drivers, language runtimes, fonts and codecs, is a package: an immutable, content-addressed, signed bundle with a manifest declaring what it provides and which capabilities it requests. Installing is fetch plus verify. There are no install scripts and no post-install hooks. Removing a package leaves nothing behind. Any number of versions coexist.
-- **Libraries.** There is no global library directory and no system-wide library version resolution. The stable system API is the IDL protocols plus `libsys`. Every package carries the libraries it was built with. Storage is content-addressed, so identical files across packages are stored once and their pages are shared in memory once. This gives the reliability of static linking with the footprint of shared libraries. Each package carries a machine-readable list of its components so a vulnerable library can be found in every package that contains it.
-- **Drivers as packages.** A driver package's manifest lists the device identifiers it binds to. The device manager matches and starts it in its sandbox. Drivers update independently of the base system because the class protocols are stable. A crashing driver is restarted; a driver that crashes repeatedly is rolled back to its previous version.
-- **Services.** Declared in manifests: what they provide, what they need, restart policy. The service manager builds the graph and routes capabilities. Nothing starts by script.
-- **One description of the machine.** A single typed, versioned document states the base version, the installed packages, the settings and the users. Applying it is transactional. Every change creates a generation; any earlier generation can be booted. The same document on identical hardware produces an identical system.
-- **App data.** Each app sees only its own storage plus whatever the user grants through the system file picker. Uninstalling offers to keep or remove that data.
-- **Permissions.** An app starts with the capabilities in its manifest that the user approved, and nothing else. Grants are visible and revocable in one place.
-- **Builds and distribution.** Builds are reproducible. Packages are signed and recorded in a public append-only log. Repositories are plain static files, so anyone can mirror or host one.
+- **Base system:** one read-only, signed, verified image, updated as a whole into the inactive slot and rolled back
+  automatically if it does not boot healthy.
+- **Packages:** everything else is an immutable, content-addressed, signed bundle with a manifest of what it
+  provides and which capabilities it requests; no install scripts; versions coexist; each carries its own libraries
+  and a machine-readable component list.
+- **Drivers as packages** bind by device identifiers and update independently; a driver that crashes repeatedly is
+  rolled back.
+- **Services** are declared in manifests (provides, needs with scopes, restart, placement `cpu=`); the service
+  manager routes capabilities; nothing starts by script.
+- **One description of the machine** (versions, packages, settings, users), applied transactionally, every change a
+  bootable generation; identical documents on identical hardware give identical systems.
+- **Apps** see only their own storage plus what the user grants; grants are visible and revocable in one place.
+- **Builds** are reproducible (`tools/repro.sh`); packages are signed and logged publicly; repositories are static
+  files.
 
 ## 17. Project and community
 
-- **Stable interfaces.** IDL protocols are versioned and, from the first `stable` release, evolve additively, each change with a written rationale.
-- **One set of gates.** Every change, from any contributor, passes the same automated tests, size budgets and performance gates.
-- **Driver kit.** Class frameworks, the mock-device test rig, a template, and a guide, so a hardware vendor or volunteer can ship a driver package without touching the base system.
-- **Supported hardware list.** Short and honest: the reference machines are fully supported; everything else is listed with exactly what works.
-- **Documentation generated from source.** The IDL reference, the architecture book and the driver guide build from the repository and fail the build when out of date.
+Protocols evolve additively from the first `stable` release, each change with a reason. Every change passes the same
+gates. A driver kit (class frameworks, mock-device rig, template, guide) lets vendors ship driver packages. The
+supported-hardware list is short and exact. Reference documentation is generated from the source and fails the build
+when out of date.
 
 ## 18. How components connect
 
-Most of what makes a system pleasant or miserable lives in the seams: how a driver meets its class protocol, how a
-service finds the services it needs, how an application receives the capabilities it was granted, how a new
-device, package or update joins a running system. Each seam is decided on purpose, before the code on either side,
-and written into the protocol:
+Each seam is decided before the code on either side and written into its protocol: **discovery** (how each side finds
+the other, and what the owner sees when it cannot), **authority** (which capabilities cross, who grants and revokes
+them; the least that does the job), **lifecycle** (start, readiness, restart, upgrade, removal, and what the other
+side sees during each), **failure** (what each error means, who recovers, what survives), **versioning** (how older
+and newer sides keep working), and **cost** (copies, round trips and wake-ups per operation, measured). One mechanism
+serves each across the system, so a driver, a service and an application are declared, started, granted, observed
+and updated alike.
 
-- **Discovery.** How each side finds the other, and what the owner sees when it cannot.
-- **Authority.** Which capabilities cross, who grants them, and how they are revoked. The default is the least that does the job.
-- **Lifecycle.** Start order, readiness, restart, upgrade and removal, and what the other side observes during each.
-- **Failure.** What every error means, who recovers, and what state survives.
-- **Versioning.** How an older and a newer side keep working together.
-- **Cost.** Copies, round trips and wakeups per operation, measured.
-
-One mechanism serves each of these across the whole system. A driver, a service and an application are declared,
-started, granted authority, observed and updated in the same way, so learning one teaches the rest. Every special
-case at a seam is something each later author and administrator has to learn, and a place where policy can be
-bypassed.
-
-Each seam is judged by the people on the outside of it:
-
-- **The driver author** has a device, its datasheet and a weekend. They discover what the class protocol expects, write only what is specific to their hardware, see why a request failed, and survive their own crashes without rebooting.
-- **The application author** has the published bindings and the examples, and nothing else. Nothing existing runs on Silica, so the cost of writing or porting a program is the cost of the system's future.
-- **The owner** opens the hood: lists every process and what it may touch, reads every log, traces a request across services, scripts the system from a shell and swaps any component. Typed protocols are as inspectable from the command line as text files were.
-- **The end user** plugs in a device, installs an application or accepts an update, and it works. A decision that is theirs is asked once, in plain words, and can be undone in one obvious place.
-- **The company** describes a machine in one document and gets the same system every time, applies policy about what may run and what it may touch, rolls updates out and back, sees what every machine runs and which capabilities each component holds, and relies on interfaces staying compatible for years.
-
-Security, stability and ease come from the structure. The safe path is also the shortest path for an author, or it
-will be skipped. When ease of use seems to need a broader grant, a hidden global, a compatibility shim or another
-daemon, that is a design problem to solve within the size budgets.
+A seam is judged by the people outside it: the driver author with a device, its datasheet and a weekend; the
+application author with only the published bindings; the owner, who inspects, scripts and swaps any component; the
+end user, who plugs in, installs or updates and it works; and the company, which describes machines in one document,
+applies policy and relies on interfaces for years. The safe path is the shortest path for an author, or it is skipped.

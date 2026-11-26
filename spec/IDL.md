@@ -66,7 +66,8 @@ payload.
 **Reply status**: 0 `ok` (payload is the result field list); 1 `error` (payload is the method's error enum
 value, encoded as a one-field list); 2 `unknown_method` (empty payload); 3 `malformed_request` (empty payload);
 4 `reply_too_large` (empty payload: the provider's reply did not fit the limits below,
-`spec/IDL_RATIONALE.md` section 5). Other values are malformed.
+`spec/IDL_RATIONALE.md` section 5); 5 `unknown_field` (empty payload: the request carries a field the
+provider's version does not know, section 4, and nothing was done). Other values are malformed.
 
 **Payload**: the request parameters, the reply results, or the error, each encoded as a field list.
 
@@ -74,7 +75,7 @@ value, encoded as a one-field list); 2 `unknown_method` (empty payload); 3 `malf
 
 | Type | Encoding |
 | --- | --- |
-| field list (parameters, results, struct) | u32 body length, then each field in declaration order |
+| field list (parameters, results, struct) | u32 body length, then each field in declaration order, ending after the last field that does not hold its default (section 4): fields at the end that hold their defaults are left out |
 | `u8`..`u64`, `i8`..`i64` | fixed width, two's complement for signed |
 | `bool` | one byte, 0 or 1; anything else is malformed |
 | enum | its declared width |
@@ -97,7 +98,7 @@ additive; lowering one is not.
 **Decoding** is total: any byte string and capability list either decodes or yields an error, never a panic, and
 decoding allocates nothing (strings, bytes and arrays decode to views of the input). Every encoded value occupies
 at least one byte, so a count larger than the remaining bytes is rejected before any loop. Encoding is canonical:
-one value has one encoding for a given protocol version.
+one value has one encoding for a given protocol version (a trailing default is never written).
 
 ### 3.1 Known-answer vectors
 
@@ -114,11 +115,12 @@ V1, `echo` request, `data` = `68 69` ("hi"), no capabilities, 26 bytes:
 06 00 00 00 02 00 00 00 68 69
 ```
 
-V2, `echo` reply, status `ok`, `data` empty, 24 bytes:
+V2, `echo` reply, status `ok`, `data` empty, 20 bytes (the field holds its default, so the list ends before it:
+section 3, "Encoding of values"):
 
 ```
-01 00 00 00 01 00 00 00 01 00 00 00 08 00 00 00
-04 00 00 00 00 00 00 00
+01 00 00 00 01 00 00 00 01 00 00 00 04 00 00 00
+00 00 00 00
 ```
 
 V3, `echo_records` request with one `Record`: `kind` = `tagged`, `flag` = true, `a` = 0x12, `b` = 0x3456,
@@ -170,6 +172,13 @@ V8, `echo` reply, status `reply_too_large`, 16 bytes (`spec/IDL_RATIONALE.md` se
 01 00 00 00 01 00 04 00 01 00 00 00 00 00 00 00
 ```
 
+V9, `echo` reply, status `unknown_field`, 16 bytes (a request carried a field this provider's version does not
+know; tested in `idl/idlc/tests/transport.rs`):
+
+```
+01 00 00 00 01 00 05 00 01 00 00 00 00 00 00 00
+```
+
 ## 4. Evolution (between versions of one protocol)
 
 A new version may only:
@@ -193,8 +202,12 @@ section 4, bypassing the check for that one commit; a removed method's ordinal b
 
 How skew is tolerated, by construction:
 
-- A decoder reads the fields it knows. If a field list's body is longer, it skips the rest (newer peer). If the body
-  ends exactly between fields, the missing fields take their defaults (older peer). A body that ends inside a
+- A decoder of a reply reads the fields it knows. If a field list's body is longer, it skips the rest (newer
+  provider: a result the caller did not ask for). A provider decoding a request does not skip: a longer body is
+  a newer client's field that holds something other than its default (one that holds its default is not
+  written), which this version cannot honour, and the request is answered `unknown_field` with nothing done.
+  Ignoring it would tell the caller that what it asked for (a narrower right, a limit, a mode) was done. If the
+  body ends exactly between fields, the missing fields take their defaults (older peer). A body that ends inside a
   field is malformed.
 - An unknown enum value decodes to an `Unknown(raw)` variant in generated code; it is not malformed.
 - An unknown method ordinal gets a reply with status `unknown_method`.
@@ -202,6 +215,11 @@ How skew is tolerated, by construction:
   ordinal it carried, or 0 when it carried none; the provider answers every request, so its caller never waits on one.
 
 ## 5. What the caller observes (transport contract)
+
+The native transport puts the byte length in the IPC label and sends that length rounded up
+to whole words. The sender zeroes the unused bytes of the final word. Before copying bytes,
+the receiver checks the label against its destination capacity, the 4000-byte limit, and the
+word count delivered by the kernel. A mismatch produces `malformed_request` or `malformed_reply`.
 
 Generated client calls return either the reply, the method's declared error, or a transport error. The transport
 (libsys and the IDL runtime) reports, uniformly for every protocol:
@@ -216,6 +234,7 @@ Generated client calls return either the reply, the method's declared error, or 
 | `unknown_method` | the provider does not implement the method (older provider) |
 | `malformed_request` | the provider rejected the request as malformed |
 | `reply_too_large` | the provider's reply exceeded the limits of section 3; it sent status 4 instead |
+| `unknown_field` | the request carried a field the provider's version does not know (an older provider); nothing was done |
 
 After `peer_gone` or `cancelled` the request may or may not have taken effect. Each method's doc comment states
 whether retrying is safe. Each protocol's doc comments state what the caller observes in the `revoked`,
@@ -237,5 +256,5 @@ whether retrying is safe. Each protocol's doc comments state what the caller obs
   (capabilities are not `Clone` and move into `Transport::call`; `dispatch` cannot fail), and by
   `spec/IDL_RATIONALE.md` section 6 (encoding takes values by value, decoding takes the
   capability list by value, and generation rejects an `array` whose element type can carry a capability).
-- How generated bindings reach other repositories (generated at build time or checked in) is decided when the
-  first consumer (D03) exists, before M2.
+- Bindings are generated at build time by each consumer (`system/protocols/build.rs` runs `silica-idlc` over
+  `idl/protocols`), never checked in.

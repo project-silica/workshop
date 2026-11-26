@@ -1,39 +1,25 @@
 # Repositories
 
-Silica's public repositories live in the [Project Silica GitHub organization](https://github.com/project-silica).
-Repositories follow stable interface boundaries. Each has a distinct audience
-or release cadence.
+Public repositories live in the [Project Silica organization](https://github.com/project-silica), split along stable
+interface boundaries.
 
-## 1. The repositories
+| Repo | Contains |
+| --- | --- |
+| `.github` | Organization profile and the reusable CI workflows |
+| `idl` | Every interface definition, the IDL compiler and runtime: the platform's stable contract |
+| `kernel` | `kernel-core`, `kernel`, arch directories, `libsys`, the UEFI loader, kernel tests and proofs |
+| `os` | Integration: `manifest.toml` pinning every repository, image builder, QEMU runner, system tests, benchmarks, `tools/` |
+| `workshop` | `AGENTS.md`, `spec/`, the workspace bootstrap and the pinned revisions (`bootstrap.pins`) |
+| `system` | The runtime, process spawner, service manager, device manager, drivers, storage, network, logging, shell, remote management |
 
-| Repo | Contains | Created at |
-| --- | --- | --- |
-| [.github](https://github.com/project-silica/.github) | Organization profile and the reusable CI workflows used by every other repo | M0 |
-| [idl](https://github.com/project-silica/idl) | Every interface definition, the IDL compiler, generated-binding conformance tests. This is the stable contract of the platform. | M0 |
-| [kernel](https://github.com/project-silica/kernel) | `kernel-core`, `kernel`, arch directories, `libsys`, the UEFI loader, kernel tests and proofs | M0 |
-| [os](https://github.com/project-silica/os) | The integration repo: `manifest.toml` pinning one commit of every other repo, image builder, QEMU runner, system-level tests, benchmarks, `tools/`, release tooling | M0 |
-| [workshop](https://github.com/project-silica/workshop) | The project root: `AGENTS.md`, this specification (`spec/`: architecture, component inventory, milestones, testing strategy, IDL rules and their rationale, glossary), workspace bootstrap and the pinned component revisions | M0 |
-| [system](https://github.com/project-silica/system) | Core services: the native runtime, the process spawner, the root task, then service manager, memory manager, device manager, config store, logging, time, identity, capability broker, update and package services, shell | M2 |
-| `drivers` | Driver host, class frameworks, the mock-device rig, every first-party driver, each driver's `BEHAVIOR.md` | M3 |
-| `storage` | Block server, namespace server, native filesystem, package blob store, other filesystem readers, encryption | M3 |
-| `network` | Network stack, protocol services, TLS, firewall, Wi-Fi supplicant | M4 |
-| `sdk` | Compiler target definitions, C/C++ bindings and runtime, language backends, WebAssembly component runtime, templates, debugger and profiler support | M5 |
-| `graphics` | Compositor, renderer, font stack, UI toolkit, input stack, audio server | M6 |
-| `desktop` | Shell surfaces and the core apps | M6 |
-| `packages` | Build recipes for third-party software ported to the platform (Servo and others) | M7 |
-| `docs` | Source of the public documentation site; reference pages are generated from `idl` and `spec` | M4 |
-
-The five linked M0 repositories and `system` exist on GitHub with `main` as their default branch. The specification lives in the workshop so it changes alongside the instructions and pins that depend on it. The remaining rows are planned repositories.
-
-Third-party drivers and apps live in their authors' own repositories and are
-published as packages. Nothing third-party is merged into these repos.
-
-Do not create a repository before its milestone. An empty repository is noise. Nor before its boundary is
-settled: a repository follows a stable interface, and until two drivers of a class have proven the class protocol
-and the driver framework has stopped changing weekly, `drivers` and `storage` live in `system/drivers/` and
-`system/storage/`, where a change to the framework and its users is one commit. They move out, with their history,
-when the M3 exit test passes.
+Planned, each created at its milestone and only once its boundary is stable: `drivers` and `storage` (M3; until then
+in `system/drivers/` and `system/storage/`, where a framework change and its users are one commit), `network` (M4),
+`sdk` (M5), `graphics` and `desktop` (M6), `packages` (M7), `docs` (M4). Third-party drivers and apps live in their
+authors' repositories and ship as packages.
 
 ## Dependencies
 
-Applications and services use the public IDL and libsys interfaces. A repository that uses another's crates names them by path, as its sibling in the workshop: the workshop layout is the build layout. The kernel does not import service implementations. The integration repository (`os`) may use any repository's crates, as it builds and tests what each makes: its host tools speak the system's protocols with the system's own crates (the owner's `silica-remote` uses `silica-crypto`, `silica-remote` and the generated bindings). Nothing depends on `os` or the workshop. The integration repository builds images and runs system tests against the revisions in its manifest.
+Applications and services use the public IDL and libsys interfaces. A repository names another's crates by path, as
+its sibling in the workshop: the workshop layout is the build layout. The kernel imports no service implementation.
+`os` may use any repository's crates (its host tools speak the system's protocols with the system's own crates).
+Nothing depends on `os` or the workshop. `tools/check-deps.sh` enforces this.
