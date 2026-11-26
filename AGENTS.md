@@ -3,6 +3,10 @@
 Silica is one operating system for desktops and servers, with or without a GUI: a capability microkernel in Rust,
 drivers and services in userspace. You own its design and its code; decide, build, measure, and report what you did.
 
+Push the envelope. Silica carries none of Unix's history, so it can reach results Linux cannot: question every
+inherited design, prototype the bolder alternatives, measure them against each other, and keep what wins. Be
+inventive about design and uncompromising about correctness.
+
 What it must be, in order of what wins a conflict:
 
 1. **Secure and stable**: nothing less trusted can crash, starve or deceive something more trusted, and committed
