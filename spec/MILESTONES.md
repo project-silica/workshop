@@ -151,26 +151,16 @@ Still to build or explain, in order:
    The TAP-only network metrics still require their echo. The separate hosted typeahead timeout is
    consistent with a lost wakeup at console startup:
    the console now arms its empty input ring before the keyboard or port can publish buffered input.
-4. What the 2026-11-24 audit found that is not fixed yet, each a design to build, not a patch:
-   - Section 3, placement: every service, driver and device interrupt runs on processor 0; an interrupt
-     stays where it was bound when its thread moves; declarations say nothing of processors. Owed: a
-     `cpus=` word in declarations and the device manager spreading drivers, lines re-routed by the kernel
-     when the thread waiting on them moves (through interrupt remapping on x86_64, the redistributor on
-     aarch64), measured against `tcp_cpu_gb` and the cross-processor gates before it is the default.
-   - Processor share by thread count: a fair context is capped at the default weight without a processor
-     capability, but a program with memory for a thousand threads still takes a thousand shares. Owed:
-     threads that share a scheduling context share its one share (group scheduling).
-   - The global lock: capability operations, `Unmap` and `Inspect` still take every processor's lock
-     (bounded per call: reaping stops every 256 slots, `Map` at 2^15 entries; shoot-downs go only to
-     processors that have the space loaded). No request path takes it (block and network requests
-     travel in rings and notifications); a server that lends memory per request would. Owed: capability
-     operations under the locks of the objects they touch, with a test of a program spamming them
-     beside a measured round trip on another processor.
-   - The heap: freed blocks stay in their size class and large frames are never returned, so a
-     long-running service's footprint is the sum of its classes' peaks. Owed: 64 KiB units given back
-     when wholly free and reused by any class, frames over 64 KiB returned to the program's memory.
-   - List methods (services, devices, partitions, log sources) answer in one message: `from` and
-     `next` on each, as `describe` has.
+4. What the 2026-11-24 audit found that is not fixed yet (the rest is fixed, each with a test that mounts its
+   attack and fails on the code before: the commits of 2026-11-25 say which):
+   - Placement's default: lines follow their waiters and declarations name processors (built); where
+     netd, its driver and httpd run is decided by a timed server-group session on an idle host
+     (http_p50, http_p99, tcp_cpu_gb, together against apart), and the device manager placing drivers
+     after it.
+   - The costs recorded in `bench/open.tsv` on the switch (the run queue's tree, scheduling groups) and
+     the page fault (the share of time holding every lock), to be won back in the design.
+   - Timed runs owed for paths changed without one (the desktop in use): netd's segment lookup and
+     transmit pass, the drivers' deadline lookup (`blk_read4k_qd1`, `net_rtt`), the heap.
    - The remote service's machine key ships in the image (`remote.key`): every machine built from one
      image shares it, and removing an owner takes a new image. Owed with M5's storage: the key made on the
      machine from its entropy at first boot and kept there, the image carrying only `remote.owners`.
