@@ -171,6 +171,12 @@ Still to build or explain, in order:
      when wholly free and reused by any class, frames over 64 KiB returned to the program's memory.
    - List methods (services, devices, partitions, log sources) answer in one message: `from` and
      `next` on each, as `describe` has.
+   - The remote service's machine key ships in the image (`remote.key`): every machine built from one
+     image shares it, and removing an owner takes a new image. Owed with M5's storage: the key made on the
+     machine from its entropy at first boot and kept there, the image carrying only `remote.owners`.
+   - Time is taken unauthenticated (SNTP): a DHCP-supplied server can still set the first clock at boot
+     within the sanity bounds. Owed: NTS. An address taken by DHCP is defended passively but not
+     probed first (RFC 5227 costs seconds of boot; Linux does not probe by default).
    - Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, and the idle watch's
      length on a physical processor; each has its test where the hardware is (the `unconfined`,
      `rogue_tcg` and `idle` guests run there).
