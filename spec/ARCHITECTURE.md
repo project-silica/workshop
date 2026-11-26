@@ -5,37 +5,46 @@ in the same work as the code that shows it wrong. Measurements and history live 
 
 ## Invariants
 
-Every component keeps these. A design that seems to need an exception is a design problem to solve.
+Every component keeps these. A design that seems to need an exception is a design problem to solve. Robustness is a
+guarantee stated first (what must never happen) and then carried by what the kernel reports and what a capability
+scopes; where a conventional system would use a timeout, a quota, a setting or a privileged supervisor, the entries
+below say what Silica uses instead.
 
 1. **Least authority, carried by the capability.** A holder can do what its capability's rights and scope say and
    nothing more, so a compromised component reaches only what it was given.
-2. **Every resource a less-trusted party can consume is bounded per holder and reclaimed when the holder goes**
-   (slots, connections, windows, queue entries, rings, memory, processor time, time holding locks), so no client
-   can exhaust a service for the others.
-3. **Knowledge comes from the kernel, not the clock.** Within the machine, a holder learns that a peer ended,
-   faulted or owes an answer from the kernel (exit messages, notices, parked calls), never by inferring it from
-   elapsed time, because a guess is wrong both ways: it kills the slow and waits on the dead. Nothing waits forever
-   on something it trusts less; the bound on a wait for a live, silent peer is a backstop whose expiry is that peer's
-   failure, never the normal path. Only a peer no kernel can speak for (a host on the network) is judged by time,
-   its bound budgeted per peer like any resource.
-4. **Less-trusted input never changes what a more-trusted part believes unchecked** (time, routes, neighbours,
-   leases, versions, device state), because the belief outlives the input.
-5. **The first holder keeps what it holds.** A second claimant is refused, never silently substituted, so a holder
-   of an endpoint cannot take over someone else's session.
+2. **A holder pays for what it consumes, and it comes back when the holder goes.** Kernel objects are made from the
+   holder's own Untyped, a service keeps a client's state in memory the client lent, and processor time comes from
+   the holder's scheduling context, so there is no shared table for one client to fill and nothing to reclaim but a
+   capability. Where a service must keep state for a client in its own memory, the bound is that client's, stated in
+   its declaration.
+3. **Knowledge comes from the kernel, not the clock.** A holder learns that a peer ended, faulted, owes an answer or
+   took its notification from the kernel (exit and fault messages, `CapNotice`, notifications, parked calls,
+   `Inspect`), because a guess from elapsed time is wrong both ways: it ends the slow and waits on the dead. Nothing
+   waits forever on something it trusts less: the wait ends on the kernel's report, and the bound behind it is a
+   backstop whose expiry is that peer's failure. A normal path, or a passing test, that waits for a bound marks an
+   unfinished design. Time judges only what no kernel can speak for: a device, by the bound its specification
+   gives, and a host on the network, by a bound budgeted per peer.
+4. **Less-trusted input changes what a more-trusted part believes only after being checked** (time, routes,
+   neighbours, leases, versions, device state), because the belief outlives the input.
+5. **The first holder keeps what it holds.** A second claimant is refused, not put in its place, so a holder of an
+   endpoint cannot take over someone else's session.
 6. **Untrusted bytes are decoded totally and shown inertly.** Parsers never panic and control characters never
    reach a terminal, because every boundary is an attack surface.
 7. **Fail closed and say why.** An unknown field, an unsupported feature or an unconfined device is refused or
-   reported by name, never ignored, so nobody believes a promise that was not kept.
+   reported by name, so nobody believes a promise that was not kept.
 8. **Secrets live only where they are needed and are wiped after use**, so a component that leaks reveals no more
    than it holds.
 9. **A cost an adversary can trigger is a security bug, not a performance limit**, because the attacker chooses
    the workload.
-10. **Authority and configuration arrive as capabilities**, given to the one component they concern, never as a
-    string every component reads, a well-known number anyone may claim or a hook a production image obeys, because
-    what everyone can read or claim is ambient authority. The kernel's own settings are the owner's boot
-    configuration; test hooks exist only in test images.
-11. **A guarantee beats a number.** When a guarantee costs speed, record the cost with its reason
-    (`os/bench/open.tsv`) and win it back in the design; never trade the guarantee.
+10. **Authority and configuration arrive as capabilities**, given to the one component they concern as a capability
+    or a field of its declaration, and checked with the image they ship in, because what everyone can read or claim
+    is ambient authority. The boot string holds the kernel's own settings, which are the owner's, and nothing a
+    service reads.
+11. **A production image carries no test machinery.** A failure is tested by building the thing that fails (a
+    hostile program or device model in the test image) or by code under the `harness` Cargo feature, which only
+    test images build; the server image is checked to contain none of it (`server_image`).
+12. **A guarantee beats a number.** When a guarantee costs speed, record the cost with its reason
+    (`os/bench/open.tsv`) and win it back in the design.
 
 Performance aims at each path's own best, not at a margin over another system: a path is tuned until a profile shows
 that what remains is work the hardware or a guarantee requires, and every improvement becomes its new ratchet.
@@ -144,17 +153,21 @@ security policy.
   clears a range whoever's frames are in it, so a program can reuse addresses where lent memory was. No mapping is
   writable and executable. No overcommit: allocation fails at the caller.
 - **Scheduler:** per-processor queues; a fair class (virtual runtime by weight) and a deadline class (admitted up to
-  90% of a processor, earliest deadline first). Processor time is a capability (`SLOT_SCHED`): a weight above the
-  default, a reservation or a group needs authority over the processors concerned. Fair scheduling has two levels:
-  a group (`SCHED_GROUP`) takes one share of its processor however many threads it holds, a thread made by a grouped
-  thread stays in the group, and the service manager gives every service one (`a_program_with_many_threads_takes_one_share`).
+  90% of a processor, earliest deadline first). Processor time is a capability: a scheduling context is time on one
+  processor because a holder of that processor's time (`SLOT_SCHED`) made it so, a fair share divided equally among
+  the threads bound to it or a reservation. A thread runs only on a context it was bound to through a capability its
+  binder holds: a new thread has none and is refused `NoTime` until bound, and when a context's last capability goes
+  its threads stop. A program holds the context its parent gave it (`slots::SCHED`), so its threads take that one
+  share however many it makes (`a_program_with_many_threads_takes_one_share`); the root task's comes from the kernel.
   The fair queue and the timers are AVL trees (`order.rs`), so a wake-up costs the same beside thousands of threads.
   IPC donates the caller's share to the server. Tickless.
 - **SMP:** every thread has a home processor; moving it is explicit and invisible to it. One lock per processor:
   local, pair (two processors in index order), structure (mapping), and global (every lock: capability slots,
-  unmapping, other processors' threads). A processor may hold every lock for a tenth of the machine's time divided
-  among the processors (`GLOBAL_SHARE`, after a 5 ms burst); past it a call waits (`THROTTLED`), so a program
-  flooding capability operations cannot stop the others (`smp_global_flood`). A destroyed address space's memory is
+  unmapping, other processors' threads). Time holding every lock is the caller's to spend, like processor time: a
+  scheduling context's threads may hold them for a tenth of the machine's time divided among the processors
+  (`GLOBAL_SHARE`, after a 5 ms burst), charged for what it cost processors that had work; past it that context's
+  calls wait (`THROTTLED`) and nobody else's, so a program flooding capability operations stops neither the other
+  processors (`smp_global_flood`) nor a program beside it. A destroyed address space's memory is
   reused only after every processor that had it loaded has left it. Every wait on another processor (its lock, an
   answer to a kick, leaving a root) is bounded: past 10 s the kernel panics naming the processor (`stall_named`).
   Modelled under `loom`.
@@ -163,39 +176,44 @@ security policy.
   processors are counted as they arrive, their TSC checked against the boot processor's. Machine checks are
   handled (a program's uncorrected error is its fault); NMIs are counted. A panic stops every processor, writes a
   crash record (the console's last lines, the panic, its backtrace) into memory the loader keeps across a warm
-  reset, and resets the machine unless a harness listens; the next boot says it and gives it to the root task
-  (`panic_reset`). The service manager alone pets the hardware watchdog, so a hung service manager or kernel is
-  reset (`watchdog`). The firmware's memory map is checked (overlaps resolved to the most restrictive kind, a
+  reset, and resets the machine through the power capability's register (ACPI's reset register, PSCI), or stops with
+  the record kept for the hardware watchdog to reset it; the next boot gives the record to the root task and the
+  service manager says it (`panic_reset`). The service manager alone pets the hardware watchdog, told by the device
+  manager's signal when its driver comes (no call, no retry), so a hung service manager or kernel is reset
+  (`watchdog`). The firmware's memory map is checked (overlaps resolved to the most restrictive kind, a
   wrapping range refused by name, no framebuffer inside usable memory). The boot
   is refused without a trusted entropy source unless the owner says `entropy=accept` (`cpu.no_rng`).
 - **Randomness:** every program has its own ChaCha20 generator with fast key erasure, seeded by its parent; the root
   task's from the boot secret, which reaches it in registers and is kept only in its own memory (no frame it lends
   holds it).
 - **Logs:** each service writes a ring of its own without waiting; `logd` keeps and shows them, and never waits on
-  the service manager. A service may register at most half the machine's 64 log rings, named after itself; rings
-  whose maker ended are reclaimed. Text shown on a terminal goes through `silica_rt::text::printable`.
+  the service manager. A service registers as many logs as its declaration says (`logs=`), named after itself; rings
+  whose maker ended are reclaimed. At shutdown `logd` drains its rings on `END` and exits, and the service manager
+  waits on that exit. Text shown on a terminal goes through `silica_rt::text::printable`.
 - **Providers that restart:** a service hears on its events notification when a provider it needs started again. A
-  service that `keeps` has a page kept across restarts and replaced with an empty one when its program changes.
-  A provider that stops answering is ended and started again: a client whose time-limited call to it expired tells
-  the service manager, which probes it once (every runtime answers the probe from its request loop); nothing polls.
+  service that `keeps` has a page kept across restarts and replaced with an empty one when its program changes
+  (the network stack's new program is also handed the old one's page read-only, to reset its peers). A client's
+  bound on a call is its own backstop: its expiry is that provider's failure for that client, and nothing else
+  acts on it. A deliberate restart is its own exit message (`AGAIN_LABEL`), never an exit status.
   Services build with overflow checks in release, as the kernel does: arithmetic that would wrap stops the program,
   and its supervisor starts it again. A program is told when its free memory falls below a mark it set
   (`mem::watch_low`, looked at on allocation and release, never on a timer) and can give back its heap's spare.
 - **Console and power:** the kernel's console never waits for the port (a ring fed as the UART takes it; a piece
   that does not fit is dropped and said). The power capability turns the machine off or resets it (PSCI; ACPI S5
-  and the reset register). The QEMU debug-exit port is written only when the command line names a harness
-  (`exit=port`).
+  and the reset register). The QEMU debug-exit port, and every other test hook of the kernel (`exit=`, `panic=`),
+  exist only in a test image's kernel (`harness`).
 - **Time:** a monotonic clock read in userspace; no timer object (a receive takes a deadline). The wall clock is a
   page every program reads; only a service declared `sets_time` may write it. Readers give up on a writer that
   stopped mid-update and report the time unknown.
 - **Interrupts:** bound to a notification and delivered on the processor of the thread waiting on it; the kernel
   moves the line when that thread moves (remapping entry, I/O APIC, GIC route or ITS collection; `irq_follow`). A
   level-triggered line is held off until acknowledged, and any line that fires again while its notification bit is
-  still pending is held off until its waiter receives, so a storming device costs its driver and nobody else. A
+  still pending is held off until its waiter receives (each notification keeps the list of its held lines, so a
+  receive releases its own and touches no other), so a storming device costs its driver and nobody else. A
   line released goes to a discard vector, and a device's MSI-X table is masked and emptied before each new driver
   starts. With interrupt remapping a device raises only the lines its
   driver bound (`rogue_tcg`). A failed `IrqBind` leaves the old binding as it was. `IrqWatch` lets an idle processor
-  see a device's completion word before its interrupt.
+  see a device's completion word before its interrupt; each line keeps its own watch.
 - **Placement:** work follows the request, not the service. A request stays on the processor where it arrives,
   device interrupt to driver to stack to program, or at least in one cache domain: each crossing costs a wake-up
   and cache misses. Throughput scales by a path per processor, not by moving services: `silica-queue` gives a
@@ -205,21 +223,24 @@ security policy.
   a device to be near (`cpu=` pins only where a measurement says so); the service manager maps it onto the
   machine's topology, which the kernel gives the root task in its start record. A balancer is an ordinary service
   holding the processor-time capability: the kernel signals sustained imbalance as an event, and the balancer moves
-  scheduling groups; nothing polls, so an idle machine wakes nothing. Mechanism only in the kernel (topology, the
+  scheduling contexts; nothing polls, so an idle machine wakes nothing. Mechanism only in the kernel (topology, the
   imbalance event, lines following waiters); policy only in services. No placement file, boot parameter or tuning
   knob, and no kernel thread: authority over processors is the processor-time capability and nothing else.
 - **Devices and DMA:** a device reaches exactly what is mapped in its device address space (`ASPACE_IO`), nothing
   before it is attached and nothing after the space goes; `Unmap` returns after the IOMMU dropped the translation.
   Confinement is for every device or none: a unit the kernel cannot drive makes it refuse every `DeviceAttach` and
-  say no device is confined. An unresponsive unit stops the machine naming it. Refused accesses are reported at a
-  bounded rate for as long as the machine runs, and a device's to whoever attached it (a notification and a count
-  through `Inspect`). Without an IOMMU (`iommu=off`)
+  say no device is confined. An unresponsive unit stops the machine naming it. A device's refused access is
+  reported once to whoever attached it (a notification and a count through `Inspect`), and the device is then held
+  quiet through its own context entry until that holder reads the count, so one device's refusals cost nobody
+  else's reports. A fault with no fault endpoint is kept in its thread; only the root task's is said on the console.
+  Without an IOMMU (`iommu=off`)
   `DeviceAttach` is `Unsupported`, the boot says so, and starting a DMA-capable driver is trusting it (`unconfined`).
 - **Speculation:** an address space can be isolated (`ASPACE_ISOLATED`): switches into and out of it flush the
   predictors and set STIBP and SSBD. A service declared `secrets` runs in one (`remote`, `entropy`); `Inspect`
   reports it. Meltdown-affected processors are refused unless the owner says `meltdown=accept`.
 - **Inspection:** `Inspect` (read right) reads slots, threads, interrupt lines and parked calls; the owner's tools use
-  the owner's capabilities, and there is no kernel debugger with authority of its own.
+  the owner's capabilities, and there is no kernel debugger with authority of its own. Counts kept only for tests
+  (interrupts delivered and from afar) exist only in a test image's kernel.
 - **HAL:** `kernel/arch/{x86_64,aarch64,riscv64}` behind one trait; aarch64 boots the same tests.
 
 **Programs.** A program is what its parent makes with `silica-proc` from one Untyped: CapSpace, address space, first
@@ -242,21 +263,28 @@ what all drivers of a class share, so a driver holds only what is specific to it
   switches decoding, bus mastering and MSI-X on before a driver runs and off when it ends or fails to start.
 - **Restarts:** a driver that faults or fails is destroyed, its device silenced, and restarted by
   `silica_proc::Restarts` (at once, then backing off to one try a minute, never given up for good). An owner's
-  `restart` is not counted. A clean `EXIT_AGAIN` is a deliberate restart, not a failure.
+  `restart` is not counted. A deliberate restart (`AGAIN_LABEL`) is not a failure, and a driver a client had opened
+  is started again at once.
 - **Clients survive their driver:** `open` takes a notification signalled when the driver ends; `silica_queue`
-  clients drain completions, reconnect without spinning, re-register memory and resend what was in flight. A flush
+  clients drain completions, reconnect without spinning, re-register memory and resend what was in flight. A client
+  that watches its class (`watch`) is told when the next driver is there and tries it then, never by the clock
+  (netd does; the block client still retries on a clock, owed). A flush
   after a driver ended with unflushed writes reports them lost, so a program never believes them durable.
 - **One client keeps its device:** input, display and console port refuse a second `connect`/`attach` while the
   first client lives (`in_use`).
 - **Devices misbehave:** a driver checks every completion, refuses queues too small for one request, watches
-  `DEVICE_NEEDS_RESET`, negotiates every feature it uses, gives requests a deadline (30 s, 1 s with a fault armed)
-  and otherwise ends to be restarted. `inject=<driver>:<fault>@<n>` commits a device's faults on purpose (`faults`).
+  `DEVICE_NEEDS_RESET`, negotiates every feature it uses, gives requests the deadline its device's specification
+  states, waits on a register only through the framework's one helper, sleeping to that bound, and otherwise ends to
+  be restarted. Faults committed on purpose (`devmgr.inject=<driver>:<fault>@<n>`, `faults`) exist only in test
+  images (`harness`).
 - **Clients cannot break the device for others:** memory of a connection that ended stays mapped until its last
   request completes; events never take a completion's ring slot; device addresses of released memory are reused.
 - **Hostile drivers:** `virtio-rogue` holds exactly what a driver holds and every attempt beyond it must fail
-  (`rogue`, `rogue_tcg`, `rogue_net`).
+  (`rogue`, `rogue_tcg`, `rogue_net`). Which program drives a device is the boot archive's drivers list to say,
+  checked with the image; a test image names the rogue there, and no boot word chooses a driver.
 - **Hot-plug:** the device manager arms PCIe hot-plug ports, powers slots, places BARs within the port's windows and
-  starts drivers; removal ends them and powers the slot off (`hotplug`).
+  starts drivers, waiting for an arrived device's link on the port's link-state interrupt; removal ends them and
+  powers the slot off (`hotplug`).
 - Every driver is native Rust against the class protocols; no wrapper for another system's drivers. Order: virtio,
   then NVMe, AHCI, xHCI/USB, e1000e/igc, HDA, then one Wi-Fi and one GPU family (M8). Hardware support is narrow by
   design: one reference laptop and one reference server, supported completely.
@@ -268,8 +296,9 @@ what all drivers of a class share, so a driver holds only what is specific to it
   A dropped client ends its connection.
 - **The block server** (`partitions`) is on the way to a partition, not on its requests: it reads each disk's GPT
   (both checksums, in transfers within the device's limits), re-reads it when a disk's driver changes, and `open`
-  returns a capability narrowed to the partition. Narrowed windows are deduplicated by range and bounded per holder;
-  a flush through a partition flushes only when a write needs it. Its scopes: `list`, `open`.
+  returns a capability narrowed to the partition. It serves from its start with the disks it has; a client that needs
+  a disk still on its way waits on the device manager's `watch`. Narrowed windows are deduplicated by range and
+  bounded per holder; a flush through a partition flushes only when a write needs it. Its scopes: `list`, `open`.
 - Planned (M5): a copy-on-write checksummed native filesystem, a content-addressed package store, FAT32/exFAT and
   read-only ext4/ISO9660 readers, GPT only, AEAD full-disk encryption keyed by TPM2 or passphrase, verified boot with
   A/B slots and rollback.
@@ -286,15 +315,20 @@ a packet filter, WireGuard, Wi-Fi.
   under 1000 s. A lease that changes ends the connections on the old address.
 - **TCP for programs** (`silica.net.Tcp`): a program lends memory once and names a block of it per connection; bytes
   travel in two byte streams in that block. What a program may do is in its capability, from its declaration: the
-  one port it may listen on (`listen=<port>`) and whether it may connect out (`connect`); a port is the owner's to
-  give, never the first claimant's, and anything else is refused `not_granted`. The stack never waits on a program;
-  connections belong to the program that made them and end when it does. Each program has at most 128 of the 256
-  connections; a listener's full
-  backlog evicts its own oldest half-open handshake; TIME-WAIT holds a small record restarted only by the peer's own
+  one port it may listen on (`listen=<port>`, `listen_given` names none) and whether it may connect out (`connect`);
+  a port is the owner's to give, never the first claimant's, one declaration's alone (the service manager refuses a
+  list that gives it twice), and anything else is refused `not_granted`. The stack never waits on a program;
+  connections belong to the program that made them until TCP is done with them, a closed one included, and end when
+  it does. A program has as many connections as the memory it lent pays for (one per 64 KiB, kept for it out of the
+  256 the stack's own memory holds); a listener's unfinished handshakes are its own, and its full backlog evicts its
+  own oldest; TIME-WAIT holds a small record restarted only by the peer's own
   FIN; FIN-WAIT-2 ends when nobody holds the connection and the peer is silent; timestamps do not reveal uptime; a
-  receiver that answers zero-window probes is kept. Transmit rotates between connections, connections with work are
-  marked due and segments find their connection through an index. The device's transmit offloads are used where
-  offered (`silica.net.Device` version 3).
+  receiver that answers zero-window probes is kept while its program holds the connection, and given up on after as
+  many probes as a segment is sent again once it does not. Transmit rotates between connections, connections with
+  work are marked due and segments find their connection through an index. The device's transmit offloads are used
+  where offered (`silica.net.Device` version 3). A stack whose program is replaced (restart, `update`, `revert`)
+  resets the old one's peers from the records the old one kept. When its interface's driver ends, the stack hears
+  from the device manager (`watch`) when the next is there.
 - Tests: `inet/tests/tcp.rs`, fuzz targets `frames` and `tcp_peer`, the interop suite against the host's Linux stack
   over a tap with hostile cases (`interop`: forged ARP, SYN flood, TIME-WAIT churn), `tcphog`, `http_load`,
   `http_restart`, `ntp`, `dhcp`.
@@ -344,16 +378,20 @@ crash dumps (planned), and a service manager with a dependency graph and restart
   make to the service manager and the log, so a script or agent elsewhere can do what the shell can. Noise IK
   (`Noise_IK_25519_ChaChaPoly_BLAKE2s`, `silica-crypto`, checked against RFC and Noise vectors), no algorithm
   negotiation. An owner's first message carries a stamp newer than its last, so a replayed handshake opens nothing;
-  only whole messages keep a session alive (`remote.idle=`); unproven connections get eight places, two per
-  address, 10 s; each owner holds its own scopes; a refused stage takes no lock. Keys and secrets are wiped after
-  use. The machine key ships in the image today; made on the machine at first boot is owed with storage (M5).
-- **Updates while running:** `stage` then `update` runs a service on a new program checked as an ELF image; a program
-  that fails within 10 s is replaced by the one before; `revert` returns to the boot archive's; `list` shows each
-  program's BLAKE2s.
+  only whole messages keep a session alive, for as long as that owner's line of `remote.owners` says
+  (`idle=<seconds>`, an hour without); unproven connections get eight places, two per address, 10 s; each owner holds
+  its own scopes, and what it sends for an update in remote's memory, bounded per owner. Keys and secrets are wiped
+  after use. The machine key ships in the image today; made on the machine at first boot is owed with storage (M5).
+- **Updates while running:** the caller writes the program into memory the service manager lends it (`program`),
+  and `update` runs the service on it once checked as an ELF image; the service manager holds no one's program
+  before that. A new program that fails before it serves (its runtime signals when it first waits for requests) is
+  replaced by the one before, however long it ran; one that has served is the service's program. `revert` returns to
+  the boot archive's; `list` shows each program's BLAKE2s.
 - **Service manager scopes** (`silica.system.Manager`): `observe`, `control`, `update`, `power`, `logs`, carried in
   each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them).
-- **Server image:** `build_server_image` holds init, the boot services and the drivers, and nothing that tests the
-  system (`server_image`).
+- **Server image:** `build_server_image` holds init, the boot services and the drivers, built without the `harness`
+  feature, and nothing that tests the system: `server_image` boots it with every test hook's words on its command
+  line and fails if one is obeyed or present in its files.
 
 ## 15. Driver porting method
 

@@ -64,7 +64,7 @@ suspected of being noise is a defect of the instrument, and the instrument is wh
 | IDL protocols | Generated round-trip, version-skew and known-answer tests; every server's decoder fuzzed. |
 | Filesystem | Differential test against an in-memory model; crash consistency by cutting writes at every block boundary; image fuzzer. |
 | Network | Interop against the host's Linux stack over a tap, including hostile peers; scripted packet traces; RFC vectors; a fuzzer on every parser. |
-| Drivers | QEMU device models; fault injection (`inject=`, `run_faults`); comparison with a reference driver by register trace and benchmark. Real hardware is M8. |
+| Drivers | QEMU device models; fault injection in test images only (`devmgr.inject=` under `harness`, `run_faults`); comparison with a reference driver by register trace and benchmark. Real hardware is M8. |
 | Driver confinement | A hostile driver with exactly a driver's capabilities (`virtio-rogue`): every attempt beyond them fails, judged by the component that enforces the boundary. |
 | Reliability | Every driver and restartable service killed under load: recovery inside its deadline, no committed write lost. |
 | Language targets | Generated bindings pass a shared conformance suite; each language's own test suite with a known-failures list that only shrinks. WASI's official suite. |
@@ -100,7 +100,7 @@ suspected of being noise is a defect of the instrument, and the instrument is wh
   `linux` or `ratchet`, the bound it may not pass, the host, and why), added by a commit that says why. While no
   worse than its bound the run reports it OPEN; past it, an error. `--update-ratchet` tightens or removes lines;
   nothing loosens one. When a guarantee costs speed, its cost is recorded there with the guarantee it buys and won
-  back in the design (ARCHITECTURE.md, Invariants 10). A milestone is not declared over an open gap of a metric it
+  back in the design (ARCHITECTURE.md, Invariants 12). A milestone is not declared over an open gap of a metric it
   requires.
 - **A gate must be able to fail:** each has a test that plants a regression; a missing metric fails at its milestone;
   a check on something that does not exist yet is a SKIP, never a pass.

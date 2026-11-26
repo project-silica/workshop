@@ -67,7 +67,7 @@ component when a working slice calls for it.
   - Owed (M8): compatibility-format messages refused is shown only on real VT-d hardware (QEMU passes them); the reference machines' `rogue` run must refuse them with fault reason 0x25
 - C33 AMD-Vi on x86_64; SMMUv3 on aarch64 (ITS message interrupts and IORT DeviceIDs are built)
 - C34 The firmware's requested device mappings (RMRR) honoured; refused device accesses delivered to the device manager; per-processor vector tables beyond 192 lines (M8)
-- C35 The x86 harness exit (debug-exit port) only when the command line says a harness is there, as `exit=semihosting` does on Arm (M8)
+- C35 The x86 harness exit (debug-exit port) and every other kernel test hook only in a test image's kernel (`harness`), as on Arm
 - C30 Early framebuffer console for the kernel's own messages on machines with no serial port (M3, with the local console)
   - Owed (M4): kernel lines after the system starts reach only the serial port; a kernel ring logd reads. aarch64 draws nothing on a framebuffer yet.
 

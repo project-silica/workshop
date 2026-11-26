@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/tools/landed.sh 2>&1 | head -40; true",
+            "timeout": 20,
+            "statusMessage": "Listing what is not on main"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "n=$(\"$CLAUDE_PROJECT_DIR\"/tools/landed.sh 2>/dev/null | grep -c '^UNLANDED'); [ \"$n\" = 0 ] || printf '{\"systemMessage\":\"%s things are not on main yet: tools/landed.sh lists them\"}\\n' \"$n\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

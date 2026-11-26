@@ -29,7 +29,8 @@ M3:
 1. The performance gaps in `os/bench/open.tsv`, each with what it waits for: the network round trip, boot (the
    firmware's exit and the emulated IOMMU set-up, and the owner's decision whether the metric counts them), transmit
    throughput, one cross-processor pair, the timer's median overshoot, the page fault, context switch and
-   same-processor IPC, and the instruction-count costs of the run-queue tree, scheduling groups and the lock share.
+   same-processor IPC, and the instruction-count costs of the run-queue tree, scheduling contexts and the lock share
+   (charged to the caller's context since this list last changed: the page fault 1845 to 1854 instructions).
    Timed runs need an idle host.
 2. Timed runs owed for paths changed without one: netd's segment lookup and transmit pass, the drivers' deadline
    lookup (`blk_read4k_qd1`, `net_rtt`), the heap.
@@ -47,12 +48,16 @@ M3:
       service and its device's driver placed in one cache domain by role, not by number.
    b. A path per processor: `silica-queue` queues per submitting processor, multiqueue virtio-net, NVMe queues per
       processor, netd and the block path sharded by flow and by queue.
-   c. The kernel's imbalance event and a balancer service that moves scheduling groups on it.
+   c. The kernel's imbalance event and a balancer service that moves scheduling contexts on it.
 7. Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, interrupt remapping's old-format block,
    the idle watch's length, the e1000e NVM wait; the `unconfined`, `rogue_tcg` and `idle` guests run there.
-8. Recovery and isolation built (panic record and reset, the watchdog, hung providers restarted, checked
+8. Recovery and isolation built (panic record and reset, the watchdog taken on the device manager's signal, checked
    arithmetic, `secrets` isolation, the low-memory signal, ordered shutdown). Owed: the device manager taking each
-   device's IOMMU fault notification itself (today the attaching driver gets it, and a hostile one can ignore it);
+   device's IOMMU fault notification itself (today the attaching driver gets it, and a hostile one can ignore it;
+   until then a refused interrupt message, or a device on a bus with no context table, holds its unit's fault
+   interrupt until a device space is inspected); a provider that spends a call's donated time without answering,
+   reported by the kernel to its supervisor (what replaces the hung-provider probe, removed as a guess anyone could
+   trigger);
    a watchdog on aarch64 (QEMU's `virt` has none; `sbsa-gwdt` on the sbsa-ref machine or hardware); a guest test
    of an MSI storm (host model only), of devices above bus 64 (the device manager does not scan an expander's root
    bus), and of SError containment (needs RAS hardware); an in-OS test moving a line on aarch64 (`irq_follow` is
@@ -60,9 +65,15 @@ M3:
 9. With M5's storage: updates land in the inactive image and switch at the next boot with rollback (until then
     `update` says it lasts until a reboot), and logd keeps a bounded log on disk.
 10. `--fast --fresh` takes 91 s against M0's 60 s (`fast_budget`): 18 s of builds and lint, 27 s of recovery tests
-    run alone, then 48 guest boots, eight at a time, many now waiting out the time limits their attacks test (a hung
-    provider's probe, replayed and silent sessions, SNTP's agreeing answers). Which of them run only in `--full`,
-    or how they get shorter, is the owner's to decide.
+    run alone, then the guest boots, eight at a time. A check joins a boot that has its image before it gets its own
+    (`net_crowd` now runs in `net`'s); the rest are the same kind of merge, guest by guest. Some still wait out the
+    time limits their attacks test (replayed and silent sessions, SNTP's agreeing answers): a peer's limit belongs
+    to that peer, so a test image's peer gets a short one in its own declaration or file, as `remote.owners` does.
+11. Facts still learned from a clock, each to be told instead: the block client retries a restarted driver on a
+    clock (netd watches its class; the block client should too), with a test of a driver away longer than the old
+    5 s; `connect` before a lease is answered `no_address` and polled (park it until the lease, bounded per
+    program); netcheck and netload wait for a device with `yield_now` (`watch`); accept is a polling call (blocks
+    posted ahead and filled by the stack).
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
@@ -78,10 +89,6 @@ the server image):
 5. Authenticated time (NTS); a DHCP-supplied server can still set the first clock within the sanity bounds.
    Duplicate-address probing (RFC 5227) before using a lease.
 6. TCP keepalive for idle connections.
-7. The stack's peers reset when its program is replaced: an update or revert gives the new netd an empty kept page,
-   so no stack resets the old connections and each peer waits out its own limit (the owner's remote tool, 120 s).
-   netd resetting them as it ends is on branch `netd-ends-wip` (system); the service manager must end it in order
-   inside `update` without dropping that call's caller (park it: a receive while an answer is owed drops it).
 
 ## Exit tests
 
