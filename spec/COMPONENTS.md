@@ -13,7 +13,7 @@ component when a working slice calls for it.
 - A04 QEMU runner with serial capture, timeout, exit-code device, screendump
 - A05 Host test harness for `kernel-core` (std build), Miri and loom jobs
 - A06 IDL compiler: `.idl` -> Rust client/server stubs, wire format, versioning checks
-- A13 IDL runtime: a client encodes into, and decodes from, its transport's own buffer (the thread's IPC buffer) instead of two 4,000-byte buffers of its own and a copy each way (M3)
+- A13 IDL runtime: a client encodes into and decodes from one buffer of its own (M3)
 - A07 Fuzz harness scaffolding, coverage reporting
 - A08 CI script runnable locally (`tools/ci.sh`) with fast and nightly tiers
 - A09 Symbolizer and panic/backtrace decoder for serial logs
@@ -28,7 +28,7 @@ component when a working slice calls for it.
 - B03 Early serial console, early framebuffer console
 - B04 Secure Boot signing, measured boot (TPM2 PCR extend) (M5)
 - B05 aarch64 boot (UEFI, device tree + ACPI), riscv64 boot (SBI) (M2, M8)
-- B08 aarch64 completion for M2: ASIDs so an address-space switch keeps the TLB, a device for the irq test on aarch64, E0PD so user reads of kernel addresses fault alike whether mapped or not (M2)
+- B08 aarch64 completion: ASIDs, a device for the irq test, E0PD (M2)
 - B06 Kernel command line and boot config
 - B07 A/B slot selection and rollback counter (M5)
 
@@ -51,25 +51,25 @@ component when a working slice calls for it.
 - C15 Resource accounting, quotas, kill and teardown as userspace policy over Untyped revocation (no kernel code)
 - C26 Bloat gates in `tools/size.sh`: kernel line count, syscall count, object-type count, static proof of no allocator in the kernel crate
 - C16 IOMMU (VT-d, AMD-Vi, SMMUv3) domains as capabilities
-- C17 ACPI table parsing (static tables in kernel; AML interpreter in userspace, see E03). `formats::acpi` is the shared reader of untrusted tables (RSDP to XSDT to a table, the DSDT, a device's fixed `_CRS`), used by roottest to find a device; the two architectures' own table walks in the kernel move onto it
+- C17 ACPI table parsing: static tables in the kernel through `formats::acpi`, the one reader of untrusted tables; AML in userspace (E03)
 - C18 CPU feature detection, mitigations selection, microcode load hook
 - C19 KASLR, W^X, SMEP/SMAP/CET, stack guards
-- C20 Boot entropy: the loader hashes (BLAKE2s) the firmware RNG, the CPU generator (RDSEED/RDRAND, RNDRRS/RNDR) and timing jitter; the kernel's slide and the root task's secret are keyed derivations of the seed, and `RootInfo::entropy_sources` says which trusted sources went in. No CSPRNG in the kernel: nothing in it needs randomness after boot (the entropy service is D14)
+- C20 Boot entropy: the loader hashes the firmware and processor generators and timing jitter; no CSPRNG in the kernel; a boot without a trusted source is refused unless `entropy=accept`
 - C21 Power: idle states (C-states), frequency hints (HWP/CPPC), suspend/resume hooks (M8)
 - C22 Virtualization objects: Vcpu, guest address space (VMX/SVM, EL2) (M9)
 - C23 Debug: kernel log ring, tracepoints, serial debugger stub, crash dump writer
 - C24 Performance counters interface
-- C27 Capability transfer through an endpoint (derive, duplicate or move, chosen by the sender), and a saved-caller reply capability so a server can answer calls out of order (M2)
-- C28 Address-space table memory: grow a live AddressSpace's pool (on 64 vCPUs, roottest smp_run exhausts the root pool mapping its sparse thread stacks), give emptied tables back, PCID so a switch keeps the TLB (M2)
+- C27 Capability transfer through an endpoint (derive, duplicate or move), and out-of-order replies through parked calls (M2)
+- C28 Address-space table memory: a live space's pool grown, emptied tables given back, PCID (M2)
 - C29 Notification bound to a thread, so one receive waits on an endpoint and on interrupts (M3)
-- C31 Finer locks for capability and mapping operations once a measurement shows the all-processors lock or the single mapping lock limiting a workload (parallel page faults, process creation on many cores)
-- C32 Interrupt remapping (VT-d): message interrupts checked against the device allowed to send them, compatibility-format messages refused, so no device forges another's interrupt; needed too for processors numbered above 255 (M3)
-  - Owed (M8): that compatibility-format messages are refused is shown only on real VT-d hardware. QEMU's model passes them unconditionally (hw/i386/intel_iommu.c, `vtd_interrupt_remap_msi`: "This is compatible mode"), so the hostile driver's old-format message is reported, not judged; the reference machines' run of `rogue` must refuse it with fault reason 0x25.
-- C33 AMD-Vi on x86_64; SMMUv3 on aarch64 (its message interrupts, through the GICv3 ITS, are built; two-level ITS device tables and the IORT's requester-ID mapping read rather than assumed are owed)
-- C34 The firmware's requested device mappings (RMRR) honoured or the devices reset before translation is switched on; refused device accesses delivered to the device manager instead of only logged; per-processor interrupt vector tables when 192 lines are too few (M8)
+- C31 Finer locks for capability and mapping operations (the global lock is now a bounded share; `Unmap` under held processors' locks is owed)
+- C32 Interrupt remapping (VT-d): a device raises only the interrupts its driver bound (M3)
+  - Owed (M8): compatibility-format messages refused is shown only on real VT-d hardware (QEMU passes them); the reference machines' `rogue` run must refuse them with fault reason 0x25
+- C33 AMD-Vi on x86_64; SMMUv3 on aarch64 (ITS message interrupts and IORT DeviceIDs are built)
+- C34 The firmware's requested device mappings (RMRR) honoured; refused device accesses delivered to the device manager; per-processor vector tables beyond 192 lines (M8)
 - C35 The x86 harness exit (debug-exit port) only when the command line says a harness is there, as `exit=semihosting` does on Arm (M8)
 - C30 Early framebuffer console for the kernel's own messages on machines with no serial port (M3, with the local console)
-  - Owed (M4): kernel lines after the system starts reach only the serial port; a machine without one needs them in the log (a kernel ring logd reads). The aarch64 kernel draws nothing on a framebuffer yet.
+  - Owed (M4): kernel lines after the system starts reach only the serial port; a kernel ring logd reads. aarch64 draws nothing on a framebuffer yet.
 
 ## D. Core userspace (M2 to M3)
 
@@ -94,7 +94,6 @@ component when a working slice calls for it.
 - D19 Locale, i18n, text encoding, collation (ICU-subset)
 - D20 Shell (typed pipelines over channels) and core utilities
 - D21 Remote management service (authenticated, encrypted; the SSH equivalent)
-  - Built (M4): `remote`, a session of the machine's own protocols (the service manager's, the log's) over a Noise IK handshake (`silica-crypto`: X25519, ChaCha20-Poly1305, BLAKE2s), owners named by key in the image (`remote.owners`), the host's `silica-remote` client; the service manager's `update` and `revert` with a 10 s trial that puts the last program back (ARCHITECTURE.md section 14, `run_remote`, fuzz target `session`). Owed: the machine key made at first boot and kept on storage under the TPM (M5), narrower grants per owner, several calls in flight, an SSH front for existing tools, a fuzzer of the program loader's segment checks (`silica_proc::spawn`; the ELF header parser is fuzzed in the kernel)
 - D22 Terminal emulator protocol and PTY-equivalent service
 - D23 Machine description: one typed document for base version, packages, settings, users; transactional apply; bootable generations
 - D24 Content-addressed library sharing: store-once on disk, share-once in memory, per-package component list
@@ -106,12 +105,12 @@ component when a working slice calls for it.
 - E02 PCI/PCIe bus driver (ECAM, MSI-X, capabilities, SR-IOV awareness)
 - E03 ACPI AML interpreter service; EC, battery, thermal, buttons
 - E04 virtio: blk, net, console, rng, gpu, input, fs, balloon, sound
-- E04 virtio-input keeps keys typed while no client is connected (before the console attaches, or once a connected one has ended: its ring's capability is gone) and gives them to the next. Owed: a test that types while the console is down; a restart is under a millisecond, the harness types a key per 60 ms, and stopping the console from the console port stops that port's shell too, so it needs a console down for longer than a keystroke from outside the console (M3)
+- E04 virtio-input keeps keys typed while no client is connected and gives them to the next. Owed: a test that types while the console is down (M3)
 - E05 NVMe, AHCI/SATA, USB mass storage, SD/eMMC
 - E05a Several disks behind one device: a unit in `silica.device.Manager`'s identity, so each NVMe namespace (later each USB mass-storage LUN) is a disk of its own (M5)
 - E06 xHCI, USB hub, HID (keyboard, mouse, touchpad, gamepad), USB audio, USB serial, USB-C/PD policy
 - E07 Ethernet: e1000e, igc, one 10G+ NIC
-- E07a e1000e (82574, QEMU's model): one queue pair of legacy descriptors, MSI-X per cause, link changes, receive buffers of 2048 bytes said in `silica.net.Device` version 2's `receive_bytes`; net, DHCP, time, HTTP and the 10,000-request load pass over it, and it is killed under load and recovers (`net_recovery_e1000e`); its descriptor rings are fuzzed (`e1000e_device`); the five device faults are injected and survived (`fault_e1000e_*`). Owed: a hostile driver in its place, checksum and segmentation offloads, a watched receive queue, and a run on a real 82574 (M8)
+- E07a e1000e (82574): one queue pair, MSI-X per cause, link changes, fuzzed rings, device faults survived, killed under load. Owed: a hostile driver in its place, checksum and segmentation offloads, a watched receive queue, a real 82574 (M8)
 - E08 Wi-Fi: one family (chosen at M8) + regulatory domain; Bluetooth HCI + HID/audio profiles
 - E09 Display: GOP/simple framebuffer, virtio-gpu, one native modesetting driver, EDID, hotplug, multi-monitor, HiDPI, VRR
 - E10 GPU: Venus (virtio-gpu Vulkan), one native GPU family (chosen at M8)
@@ -123,12 +122,12 @@ component when a working slice calls for it.
 - E16 Driver porting pipeline: behavior descriptions, register-definition generator, per-class frameworks (ARCHITECTURE.md section 15)
 - E17 Driver verification rig: register-trace capture and comparison against a reference driver, per-driver benchmark gate
 - E18 Driver packages: manifest device matching, independent update, automatic rollback of a repeatedly crashing driver
-- E19 Orderly driver stop: the device manager tells each driver the system is going down and gives it a moment (an NVMe controller's shutdown notification, a volatile cache flushed, a NIC's DMA stopped) before ending it (M3)
+- E19 Orderly driver stop: drivers told the system is going down and given a moment (NVMe shutdown, caches flushed, DMA stopped) before ending (M3)
 
 ## F. Storage (M3 to M5)
 
 - F01 Block server, request rings, partition (GPT) service, I/O scheduler
-  - Owed (M5): the partitions service reads only the primary GPT; a disk whose primary header or entries fail their checksum is offered whole, where the backup at the disk's end would still describe it
+  - Owed (M5): the partitions service reads only the primary GPT; the backup is not used when the primary fails its checksum
 - F02 VFS/namespace server: directory capabilities, path resolution, watches
 - F03 Native CoW filesystem: format, allocator, B-trees, checksums, snapshots, send/receive, scrub, fsck, crash consistency
 - F04 Package blob store (Merkle-verified, read-only)
@@ -144,7 +143,6 @@ component when a working slice calls for it.
 ## G. Network (M4)
 
 - G01 Netstack core: interfaces, routing, neighbor tables, sockets API in IDL
-  - Built (M4, first slice): `netd` on one interface: ARP (16 neighbours, one packet held while its next hop is asked), IPv4 without fragments, ICMP echo, UDP, DHCPv4 client (`silica-inet`, fuzzed). Built since: TCP for programs (`silica.net.Tcp`), SNTP, a program's listeners and connections let go of when it ends. Owed: UDP for programs, IPv6, more than one interface, reassembly, the drop counters readable from the shell, `partitions` serving the partitions of a disk added after boot (it waits for disks at boot through `watch` now, but reads the tables once)
 - G02 IPv4, IPv6, ICMP/ICMPv6, NDP, ARP, fragmentation, PMTU
 - G03 TCP (SACK, window scaling, timestamps, ECN, CUBIC + BBR), UDP, raw sockets by capability
 - G04 DHCPv4, DHCPv6, SLAAC, RA handling
@@ -157,9 +155,8 @@ component when a working slice calls for it.
 - G11 Bridge, VLAN, bonding, TAP for VMs (M8)
 - G12 Loopback, local inter-process sockets (channels)
 - G13 Network diagnostics tools (ping, trace, capture)
-  - Owed (M4): every TCP connection as the owner sees it, Linux's `ss -ti` (state, peer, windows, round trip, retransmissions, timeouts, reductions undone: `Connection::info`), from the shell and the remote session. A service has one endpoint and one protocol, and the listing must not be in `silica.net.Tcp` (any program would see every other's peers), so it waits for a service's state being readable by the owner beyond its protocol, which every service needs. Until then the interop suite's lossy runs are read from a capture on the host side of the tap
+  - Owed (M4): every TCP connection as the owner sees it (state, peer, windows, round trip, retransmissions), from the shell and remote; it waits for a service's state being readable by the owner beyond its protocol
 - G14 Zero-copy path, RSS, GRO/GSO, checksum offload
-  - Built (M4): transmit checksum and TCP over IPv4 segmentation offloads, in the class protocol, virtio-net and netd. Owed: e1000e's (M4), receive checksum and coalescing (GRO), more than one queue pair (RSS), sending from a program's memory in place
 - G15 Time sync hooks (PTP later)
 
 ## H. Graphics and desktop (M6)

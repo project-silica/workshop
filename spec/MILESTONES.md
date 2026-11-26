@@ -1,227 +1,67 @@
 # Milestones
 
-The exit test says what a milestone must do. The list under "What the current
-milestone lacks" says what the code does not do yet, found by reading the code
-against the exit test; its first item is what to build next. A commit that
-builds an item, or finds one missing, changes the list with it. Engineering can
-proceed as soon as the technical prerequisites exist.
-
-An exit test is a floor. It passes when the system at that stage is something
-its users could depend on for what the stage claims, so strengthen a test that
-passes while the system plainly is not, and add what it failed to anticipate.
+Each milestone has an exit test (the table below). The list under "What the current milestone lacks" is what the
+code does not do yet against that test; its first item is what to build next. A commit that builds an item, or finds
+one missing, changes the list with it. An exit test is a floor: strengthen one that passes while the system plainly
+is not dependable for what the stage claims.
 
 ## Required at every milestone
 
 Each exit test includes these, for everything built up to that point:
 
-- Every size budget and every performance gate due by then passes (`spec/ARCHITECTURE.md` section 2, `spec/TESTING.md` section 4), every metric with a Linux number in `os/bench/reference.tsv` meets its target of 15% better than it, and no metric due by then has an open gap (`os/bench/open.tsv`).
+- Every size budget and every performance gate due by then passes (`spec/ARCHITECTURE.md` section 2, `spec/TESTING.md` section 4), every metric stays above its Linux floor in `os/bench/reference.tsv`, no metric due by then has an open gap (`os/bench/open.tsv`), and every path the milestone's work touched was tuned until its profile showed only work the hardware or a guarantee requires.
 - The boot matrix passes: 1, 2, 8 and 64 vCPUs, with 256 MB and 16 GB of RAM.
-- Every new trust boundary (syscall, protocol decoder, on-disk or on-wire parser, device response) has a fuzzer that runs 10 minutes clean.
+- Every new trust boundary (syscall, protocol decoder, on-disk or on-wire parser, device response) has its promise written beside the code, an attack test that fails when it breaks, and a fuzzer that runs 10 minutes clean.
 - Every new restartable component has been killed under load and has recovered inside its deadline with nothing leaked.
 - Every new published protocol has documentation generated from its source and a client written from that documentation alone.
 - The owner can inspect every new component with the tools available at that stage: its state, its capabilities and its log.
 - Each new error path is exercised by a test and reports what failed and why.
-- The decisions underneath have been tested by this milestone's work. Whatever the new layer had to work around in a lower layer, such as an awkward protocol, a missing concept, or a cost that should not be there, is fixed in the layer that owns it before the next milestone builds on it.
+- Whatever the new layer had to work around in a lower layer is fixed in the layer that owns it before the next milestone builds on it.
 
-A milestone is declared once, when its list below is empty: from a fresh clone, on the image the tools build, `SILICA_MILESTONE=<n> tools/test.sh --deep --fresh` is green with no test skipped or weakened to get there (every check ran on that tree, nothing read back from the evidence store, and Silica measured on it). That run declares a milestone and has no other use; it is not how the list is found.
+A milestone is declared once, when its list is empty: from a fresh clone, `SILICA_MILESTONE=<n> tools/test.sh --deep --fresh` is green with no test skipped or weakened. That run declares a milestone and has no other use.
 
 ## What the current milestone lacks
 
-M3, read against its exit test and the requirements above on 2026-11-22. Built already: the service manager
-booting from declarations; virtio-blk, virtio-net and NVMe in userspace, confined, each with a hostile driver in its
-place and the unconfined image; drivers killed under load (`recovery`, `net_recovery`, `recovery_nvme`); device fault
-injection; the keyboard and display drivers restarted under the shell; disk hot-add and removal; shutdown and reset;
-`trace`, `log` and `caps` in the shell; fuzzers for M3's trust boundaries, each 10 minutes clean (`virtqueue`: the
-used ring of virtio-blk, -net and -input; `nvme_controller`: completion entries, Identify data and CAP;
-`pci_config`: configuration space as the device manager and a driver read it; `ring`: `silica-queue`'s and the log's
-rings with a hostile peer; `gpt`); interrupt remapping (C32: a device raises only the interrupts its driver bound,
-shown by the hostile driver's forged message refused under `rogue_tcg`; the old-format block is owed on real
-hardware, COMPONENTS.md); services killed under their clients' load (`svcload`: partitions, logd, console,
-shell and the device manager restarted ten times each, every recovery inside the 250 ms deadline (the device
-manager's 65 ms, the others' under a millisecond), no read or log line lost, no client failing, the service
-manager's free memory as before); virtio-rng and the entropy service (D14: `entropy`); virtio-console, the shell
-reached from a virtual machine's host through it (`console_port`); the kernel's lines until the system starts, and
-its panic, on the framebuffer (C30, `panic_screen`); the IDL client's one in-place message buffer (A13; why not the
-IPC buffer itself: IDL_RATIONALE.md).
+M3 (M4 is built ahead of it; both lists are open). What is built, and the evidence for it, is in the commits.
 
-The capability proof obligation from M2 remains partly open. Kani verifies a single copy
-from a populated slot into an empty one. The exhaustive revoke test covers unmapped frames
-and empty endpoints on bounded lists. A proof covering operation sequences and the other
-object destruction paths is still owed.
+M3:
 
-A failed spawn returns outright grants to their original parent slots before
-destroying the child's capability space. The `failed_spawn_returns_grants`
-guest test checks the identity, rights and derivation depth of both an endpoint
-and an Untyped after a later grant fails.
+1. The performance gaps in `os/bench/open.tsv`, each with what it waits for: the network round trip, boot (the
+   firmware's exit and the emulated IOMMU set-up, and the owner's decision whether the metric counts them), transmit
+   throughput, one cross-processor pair, the timer's median overshoot, the page fault, context switch and
+   same-processor IPC, and the instruction-count costs of the run-queue tree, scheduling groups and the lock share.
+   Timed runs need an idle host.
+2. Timed runs owed for paths changed without one: netd's segment lookup and transmit pass, the drivers' deadline
+   lookup (`blk_read4k_qd1`, `net_rtt`), the heap.
+3. `net_recovery` once took 656 ms against its 250 ms deadline under `--fast`; not reproduced in 420 recoveries.
+   `netload` now says where a slow recovery's time goes.
+4. The hosted deep run: verify on the runner that aarch64 `smp_*` and systest finish (progress-judged timeouts) and
+   that the fast tier fits its budget there.
+5. The capability proof: Kani verifies one copy and the exhaustive check covers revoke over bounded lists of frames
+   and endpoints; a proof over operation sequences and the other destruction paths is owed.
+6. Placement's default: where netd, its driver and httpd run, decided by a timed server-group session (`http_p50`,
+   `http_p99`, `tcp_cpu_gb`, together against apart), then the device manager placing drivers.
+7. List methods (services, devices, partitions, log sources) answer in one message: `from` and `next` on each.
+8. Hot-plug: a status read and clear that cannot miss a fast change, interrupt lines returned, a slot reusable by a
+   different device, the link wait off the device manager's loop, bridge bus numbers validated; and an attack test
+   for events crowding out completions.
+9. Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, interrupt remapping's old-format block,
+   the idle watch's length, the e1000e NVM wait; the `unconfined`, `rogue_tcg` and `idle` guests run there.
 
-After boot, a successful provider start signals every running consumer of
-that protocol. The `svcload` guest stops and starts partitions as a client,
-checks its notification, and checks that starting it twice produces no
-second notification.
+M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
+load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
+the server image):
 
-The wall-clock reader makes at most two attempts to sample its time page. If a
-writer exits mid-update, readers report unknown time until the next completed
-write (`systest` runs the writer and reader as separate programs). The SNTP
-decoder rejects timestamps before the Unix epoch. Authentication of the time
-source and limits on the clock changes it may request remain open.
-
-The log reader preserves byte offsets through malformed UTF-8 and carries a
-valid character across a reply boundary whole. Filtering terminal control
-characters on the console and in remote output remains open.
-
-The partition service reads GPT entry arrays in transfers that fit both
-the disk's advertised maximum and the registered buffer. On x86_64,
-`partitions_small_transfer` finds the system partition on a QEMU NVMe
-namespace with 512-byte blocks, an 8 KiB limit and a 16 KiB entry array.
-
-The shell splits long command output at UTF-8 character boundaries. The
-terminal client test delivers 11,976 bytes through the generated wire codec
-and compares the complete text. The x86_64 console guest covers the shell's
-log, service and device commands on the keyboard and display.
-
-Terminal protocol version 2 reports a busy reader separately from an empty
-input line. In `svcload` the shell keeps its pending read when a second
-program asks for input. In `console_port` an empty line typed before an
-ordinary command gets its own shell prompt.
-
-The fast tier compares the current system IDL with the protocol definitions
-in both the workshop release pin and the OS integration pin. All 14
-published protocols passed against both pins after the terminal change.
-The gate's regression removes a protocol and changes a shipped method's
-ordinal in separate trials. Both are rejected.
-
-The intermittent timeout after `fault_virtio_blk_stuck` was located in QEMU 11.1.3 on KVM. Eight copies of the
-archived guest from the failed 20:29 run booted together on q35 with the original in-kernel irqchip. Seven exited
-with status 33; one passed blkcheck, printed `BOOT OK` and timed out. QEMU traced two guest shutdown requests in
-that VM. In a second batch of eight, the parent read QEMU's `shutdown_requested` via `/proc/<pid>/mem` during the
-stall: 6 (guest shutdown), with its main thread asleep in `do_sys_poll`. Opening and closing the monitor socket
-without sending a command made QEMU exit with the original debug-exit status 33. The normal test still requires
-the VM to exit by itself. Run one fault case by its reported name, e.g. `tools/test.sh --guest fault_virtio_blk_stuck`.
-
-The `systest` stop under `--full` on 2026-11-22 (QEMU exiting 0 mid-run, not through the debug-exit device) was the
-guest resetting itself: on x86_64 every address-space root maps the kernel, and a processor idle or waiting for its
-lock still ran on the root of a program another processor had just destroyed, whose memory a new object then
-reused. Sixteen copies at a time, 240 runs: 7 failed (six resets, one double fault in the idle halt), 1 with idle
-processors moved to the kernel's root, 0 with the handshake now in the kernel (a destroyed root's memory is reused
-only after each processor on it has answered that it left; loom model and host test beside it). Under `-no-reboot`
-QEMU traces no request for such a reset, so `qemu.sh` now names it when nothing asked the emulator to stop.
-
-The idle watch's length no longer rests on one host's sweep: each processor's watch learns from its halts, and with
-that in place 1, 2 and 5 us minimums give the same cross-processor IPC within the noise (2026-11-23; ARCHITECTURE.md,
-Time). A boot-time measurement was tried and is not needed.
-
-Still to build or explain, in order:
-
-1. The performance gaps in `os/bench/open.tsv`. The session of 2026-11-24 on an idle host (desktop locked) closed
-   the block reads at depth 1 (3.61 us, confined 4.26: their best), the confined round trip's p99 and
-   cross-processor IPC on four pairs. Still open: the network round trip (9.05 us against Linux 10.23, 0.884;
-   target 0.85; its line says what is next), boot (22.3 ms, red: the firmware's exit and the IOMMU set-up, and
-   the owner's decision whether the metric counts them), transmit throughput 2% under its best, one
-   cross-processor pair, the median timer overshoot, the page fault, and, new that session, context switch and
-   same-processor IPC 1.1 to 1.4% under their best with their instruction counts unchanged (the host, not the
-   code). Each line there says what it waits for.
-2. `net_recovery` under `--fast` on 2026-11-23 (the desktop in use) saw one recovery of 656 ms against its 250 ms
-   deadline. `netload` now says where a slow recovery's time went (until the next driver took the connection, with
-   the tries, and from there to the first completion). Not reproduced since: 30 runs by name, 420 recoveries, the
-   slowest 6 ms, 10 of the runs beside 16 busy processes. Waits for its next occurrence, which explains itself.
-3. The hosted deep run. Run [45176778475](https://github.com/project-silica/os/actions/runs/45176778475/attempts/1)
-   reported 75 failures: the runner's ARM firmware (2025.11-3ubuntu7.3) faulted before the loader, and
-   nightly now selects 2026.05-2ubuntu3, installs cargo-fuzz and the instruction counter's headers, and
-   archives fuzz build logs, benchmark serial output and check durations. The next,
-   [45216348057](https://github.com/project-silica/os/actions/runs/45216348057) (2026-11-23), had 8:
-   - The syscall fuzzer's seeds under their floor (1245 edges of 1347; 1259 here): each new syscall had
-     changed every seed's meaning. Fixed on 2026-11-24 (kernel: a fixed SYSCALL_SPACE, the corpus carried
-     across, 1764 edges); inet's `frames` was already above its new floor.
-   - aarch64 `smp_stress`, `smp_revoke`, `smp_timeouts` and systest's `four_pairs_on_eight_processors`
-     timed out while still running (the processors' PCs: one spinning in user mode by design, two in the
-     IPC path), 8 emulated processors on the runner's 4 slow cores. Fixed on 2026-11-24 by judging
-     progress instead of a total time: the tests count it and say it every 10 s, systest's clients signal
-     it, and the harness ends a guest after a minute of silence (`qemu.sh --quiet`). With 8 processors on
-     2 host cores here, systest passes in 463 s and smp_stress passes. The idle watch was suspected of
-     starving such machines and is not: off and on gave the same times on 4 host cores. Verify on the
-     hosted runner.
-   - The fast tier took 95 s on the runner (limit 60 s; 160 s of work on 4 processors). Attributed here by
-     each check's start and end (2026-11-24): of 51 s, 12 s was the console check typing (a process and a
-     60 ms pause per key) and about 3 s finding objcopy twice per program in every build; both gone, 38 s
-     now. The largest part left is the three recovery checks, 19 s alone by design. Measure the runner
-     again on the next nightly.
-   Without a dedicated
-   TAP echo processor the benchmark guest ran netcheck without a NIC (reproduced exit 17). The harness
-   now attaches a user-mode NIC on that host: ARP and ping pass and the guest reports BENCH DONE.
-   The TAP-only network metrics still require their echo. The separate hosted typeahead timeout is
-   consistent with a lost wakeup at console startup:
-   the console now arms its empty input ring before the keyboard or port can publish buffered input.
-4. What the 2026-11-24 audit found that is not fixed yet (the rest is fixed, each with a test that mounts its
-   attack and fails on the code before: the commits of 2026-11-25 say which):
-   - Placement's default: lines follow their waiters and declarations name processors (built); where
-     netd, its driver and httpd run is decided by a timed server-group session on an idle host
-     (http_p50, http_p99, tcp_cpu_gb, together against apart), and the device manager placing drivers
-     after it.
-   - The costs recorded in `bench/open.tsv` on the switch (the run queue's tree, scheduling groups) and
-     the page fault (the share of time holding every lock), to be won back in the design.
-   - Timed runs owed for paths changed without one (the desktop in use): netd's segment lookup and
-     transmit pass, the drivers' deadline lookup (`blk_read4k_qd1`, `net_rtt`), the heap.
-   - The remote service's machine key ships in the image (`remote.key`): every machine built from one
-     image shares it, and removing an owner takes a new image. Owed with M5's storage: the key made on the
-     machine from its entropy at first boot and kept there, the image carrying only `remote.owners`.
-   - Time is taken unauthenticated (SNTP): a DHCP-supplied server can still set the first clock at boot
-     within the sanity bounds. Owed: NTS. An address taken by DHCP is defended passively but not
-     probed first (RFC 5227 costs seconds of boot; Linux does not probe by default).
-   - Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, and the idle watch's
-     length on a physical processor; each has its test where the hardware is (the `unconfined`,
-     `rogue_tcg` and `idle` guests run there).
-
-TCP keeps a connection open while its receiver answers zero-window probes.
-The transport test holds a receiver full for an hour of protocol time, then
-reads all 40,000 queued bytes. A second test drops the replies and observes
-a timeout. An idle-host TCP CPU measurement after this change is still owed.
-
-The x86_64 `http` guest test also half-closes the client after one request
-and after two pipelined requests. It checks each body and waits for EOF.
-The single request already completed. With two requests the original server
-dropped the buffered second request after FIN. It now answers both in order.
-
-M4 is built ahead while M3's first item waits for timed benchmark sessions on an idle desktop and its third for
-the hosted run. Read against M4's exit test on 2026-11-24. Built: DHCP, SNTP, the wall clock from the hardware
-clock, TCP for programs and 10,000 checked HTTP answers (`http_load`), the same over e1000e, the stack killed
-under load (`http_restart`), the packet parsers fuzzed (`frames`, `tcp_peer`, `e1000e_device`), no periodic
-wake-ups on the idle server (`idle`), a remote management session that inspects, restarts and updates any
-service, the session's own included (`remote`, fuzz target `session`; ARCHITECTURE.md section 14), the program
-loader's checks fuzzed (`image`), and the interop suite against the host's Linux stack over a tap (`interop`:
-eight cases on a plain path, with a 536-byte MSS and an 8 KiB window, and with 2% loss, 1% duplication and 10%
-reordering each way, and on the plain path 4 GiB + 16 MiB on one connection across the sequence-number wrap; it
-found four defects, fixed: TIME-WAIT holding 64 KiB of buffers a connection for a minute,
-every 32 KiB buffer a frame of its own so the stack ran out of capability slots at about 240 connections, a
-finished stream closed at once losing its last bytes to a reset, and a server that died on a refused accept).
-TCP under loss (2026-11-24): 16 MiB through the lossy path takes the guest 1.62 to 1.90 s in five runs of six (one
-2.85 s), from 22 s at the start of that work, against Linux to Linux's 4.22 to 5.71 s on the same impairments
-with Linux held to one segment per skb as the guest's frames are (ARCHITECTURE.md, TCP). The 0.08 to 1.1 s once
-recorded for Linux was netem judging Linux's GSO bursts of up to 44 segments whole.
-Still to build, in order:
-
-1. The TCP gates of `spec/TESTING.md` section 4 measured against Linux on the same tap path as `net_rtt`, and
-   the server image: its idle memory, and its size on disk (16 MB; `size.sh` skips it until an image of the
-   server alone, without the checks, is built). The lossy comparison above becomes a gate there, its Linux
-   number in `bench/reference.tsv`, measured the way ARCHITECTURE.md says. Built: the instrument, `tcpbench`
-   (host-tools), measuring any guest's HTTP server from the host (first answer, p50 and p99 at a fixed rate
-   over 64 connections, the virtual processors' time per GiB at a fixed rate); its first use found netd waking
-   a program on every pass, fixed. The Linux baseline serves the same answers (`build_linux <log> server`,
-   IPv4 and TCP in its config). First comparison, untimed and unpinned, 2 processors, the same tap
-   (2026-11-24): HTTP p50 101.5 us Linux, 106 to 110 Silica; p99 176.6 and 187 to 252; the guest's
-   processors per GiB at a fixed 200 MB/s 874 ms and 4,496 ms (5.1 times), at 50 MB/s 1,070 and 9,845 (9.2
-   times). Built since: the device's transmit offloads (G14; `silica.net.Device` version 3, virtio-net, netd,
-   ARCHITECTURE.md's TCP section): p50 80.8 us against Linux's 101.5, p99 197 against 176.6, the guest's
-   processors per GiB 3.09 s at 200 MB/s and 3.83 s at 50 MB/s (Linux 0.87 and 1.07). Still to build, in order:
-   (a) the guest's processors per GiB, the open gap `tcp_cpu_gb` (3.86 times Linux, timed): the idle
-   watch is 71% of the guest's cycles at 200 MB/s; a 20 us cap cut a third untimed but cost depth-32 block
-   reads 5.6% in the sweep, so the watch must spend only what the halt it avoids costs (its line in
-   `bench/open.tsv`), then netd's copies; (b) e1000e's checksum and TSO context descriptors, so the second
-   driver offloads what the device has. Built: the server group in `bench.sh` (`http_p50`, `http_p99`,
-   `tcp_cpu_gb`, `boot_server`; `boot_server()`), Linux's numbers locked from one `--linux` session
-   (2026-11-24, 8 processors): HTTP p50 92.5 us against 159.8 (0.58), p99 399 against 639 (0.62), boot to
-   the first answer 66.7 ms against 1,187 (0.06).
-2. The 24 h soak under mixed load: memory and capabilities flat, no request failed (a run on this host,
-   its evidence committed).
+1. The TCP gates against Linux: `tcp_cpu_gb` is 3.86 times Linux (the idle watch is most of the guest's cycles:
+   it must spend only what the halt it avoids costs, then netd's copies); the lossy-path comparison becomes a gate;
+   the server image's idle memory.
+2. e1000e's checksum and TSO context descriptors.
+3. The 24 h soak under mixed load: memory and capabilities flat, no request failed.
+4. The remote service's machine key made on the machine at first boot and kept there (with M5's storage), the image
+   carrying only `remote.owners`.
+5. Authenticated time (NTS); a DHCP-supplied server can still set the first clock within the sanity bounds.
+   Duplicate-address probing (RFC 5227) before using a lease.
+6. TCP keepalive for idle connections.
 
 ## Exit tests
 
