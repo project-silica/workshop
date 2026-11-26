@@ -50,14 +50,13 @@ M3:
    c. The kernel's imbalance event and a balancer service that moves scheduling groups on it.
 7. Owed on real hardware (M8): the IOMMU's RMRR ranges, AMD-Vi, Arm SMMUv3, interrupt remapping's old-format block,
    the idle watch's length, the e1000e NVM wait; the `unconfined`, `rogue_tcg` and `idle` guests run there.
-8. Unattended recovery: a kernel panic records itself in memory kept across a warm reset and resets the machine
-   (unless a harness listens), and the next boot logs the record; the service manager arms the hardware watchdog
-   and alone keeps it from firing; a provider that stops answering is ended and restarted (a client whose
-   time-limited call expired tells the service manager, which asks the provider once itself: nothing polls).
-9. Services' arithmetic is checked in release builds (fail closed, the service restarts), as the kernel's is.
-10. A `secrets` role in declarations: those services' address spaces are isolated against speculation.
-11. A program is told when its free memory falls below a mark it set, so caches shrink before an allocation fails.
-12. With M5's storage: updates land in the inactive image and switch at the next boot with rollback (until then
+8. Recovery and isolation built (panic record and reset, the watchdog, hung providers restarted, checked
+   arithmetic, `secrets` isolation, the low-memory signal, ordered shutdown). Owed: the device manager taking each
+   device's IOMMU fault notification itself (today the attaching driver gets it, and a hostile one can ignore it);
+   a watchdog on aarch64 (QEMU's `virt` has none; `sbsa-gwdt` on the sbsa-ref machine or hardware); a guest test
+   of an MSI storm (host model only), of devices above bus 64 (the device manager does not scan an expander's root
+   bus), and of SError containment (needs RAS hardware); netd as the first caller of `mem::watch_low`.
+9. With M5's storage: updates land in the inactive image and switch at the next boot with rollback (until then
     `update` says it lasts until a reboot), and logd keeps a bounded log on disk.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under

@@ -147,11 +147,18 @@ security policy.
   unmapping, other processors' threads). A processor may hold every lock for a tenth of the machine's time divided
   among the processors (`GLOBAL_SHARE`, after a 5 ms burst); past it a call waits (`THROTTLED`), so a program
   flooding capability operations cannot stop the others (`smp_global_flood`). A destroyed address space's memory is
-  reused only after every processor that had it loaded has left it. Modelled under `loom`.
+  reused only after every processor that had it loaded has left it. Every wait on another processor (its lock, an
+  answer to a kick, leaving a root) is bounded: past 10 s the kernel panics naming the processor (`stall_named`).
+  Modelled under `loom`.
 - **Boot:** the kernel checks the whole boot archive (CRC32C and every format rule, one reader shared with the image
   builder) before starting the root task; a damaged archive runs nothing (`error.archive_damaged`). Secondary
   processors are counted as they arrive, their TSC checked against the boot processor's. Machine checks are
-  handled (a program's uncorrected error is its fault); NMIs are counted; a panic stops every processor. The boot
+  handled (a program's uncorrected error is its fault); NMIs are counted. A panic stops every processor, writes a
+  crash record (the console's last lines, the panic, its backtrace) into memory the loader keeps across a warm
+  reset, and resets the machine unless a harness listens; the next boot says it and gives it to the root task
+  (`panic_reset`). The service manager alone pets the hardware watchdog, so a hung service manager or kernel is
+  reset (`watchdog`). The firmware's memory map is checked (overlaps resolved to the most restrictive kind, a
+  wrapping range refused by name, no framebuffer inside usable memory). The boot
   is refused without a trusted entropy source unless the owner says `entropy=accept` (`cpu.no_rng`).
 - **Randomness:** every program has its own ChaCha20 generator with fast key erasure, seeded by its parent; the root
   task's from the boot secret, which reaches it in registers and is kept only in its own memory (no frame it lends
@@ -175,7 +182,10 @@ security policy.
   stopped mid-update and report the time unknown.
 - **Interrupts:** bound to a notification and delivered on the processor of the thread waiting on it; the kernel
   moves the line when that thread moves (remapping entry, I/O APIC, GIC route or ITS collection; `irq_follow`). A
-  level-triggered line is held off until acknowledged. With interrupt remapping a device raises only the lines its
+  level-triggered line is held off until acknowledged, and any line that fires again while its notification bit is
+  still pending is held off until its waiter receives, so a storming device costs its driver and nobody else. A
+  line released goes to a discard vector, and a device's MSI-X table is masked and emptied before each new driver
+  starts. With interrupt remapping a device raises only the lines its
   driver bound (`rogue_tcg`). A failed `IrqBind` leaves the old binding as it was. `IrqWatch` lets an idle processor
   see a device's completion word before its interrupt.
 - **Placement:** work follows the request, not the service. A request stays on the processor where it arrives,
@@ -193,7 +203,9 @@ security policy.
 - **Devices and DMA:** a device reaches exactly what is mapped in its device address space (`ASPACE_IO`), nothing
   before it is attached and nothing after the space goes; `Unmap` returns after the IOMMU dropped the translation.
   Confinement is for every device or none: a unit the kernel cannot drive makes it refuse every `DeviceAttach` and
-  say no device is confined. An unresponsive unit stops the machine naming it. Without an IOMMU (`iommu=off`)
+  say no device is confined. An unresponsive unit stops the machine naming it. Refused accesses are reported at a
+  bounded rate for as long as the machine runs, and a device's to whoever attached it (a notification and a count
+  through `Inspect`). Without an IOMMU (`iommu=off`)
   `DeviceAttach` is `Unsupported`, the boot says so, and starting a DMA-capable driver is trusting it (`unconfined`).
 - **Speculation:** an address space can be isolated (`ASPACE_ISOLATED`): switches into and out of it flush the
   predictors and set STIBP and SSBD. A service declared `secrets` runs in one (`remote`, `entropy`); `Inspect`
