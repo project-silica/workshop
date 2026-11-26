@@ -82,9 +82,8 @@ M3:
     program after 5 calls and its session closed on its 6 s idle bound; not seen in the five runs after. Owed: what
     held the owner's bytes (the host's sends, netd's receive window, virtio-net's receive queue), from a run that
     keeps netd's counters with the serial log.
-13. netd's listener has no test that runs it deterministically: a handshake evicted from a full backlog is now reset
-    (it was dropped without a word, and a real peer in a burst waited out its SYN retries), seen only in the `remote`
-    test on a hosted runner, whose SYNs reach netd in one receive batch. Owed: a host test of netd's TCP table.
+13. netd's TCP table has no host test: the listener without a backlog (what waits takes places the program paid
+    for) and the reset of an evicted handshake are seen only through guests. Owed: a host test of netd's TCP table.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
