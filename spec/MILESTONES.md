@@ -82,6 +82,11 @@ M3:
     program after 5 calls and its session closed on its 6 s idle bound; not seen in the five runs after. Owed: what
     held the owner's bytes (the host's sends, netd's receive window, virtio-net's receive queue), from a run that
     keeps netd's counters with the serial log.
+13. On hosted runners (4 processors, 2026-11-26) the `remote` test's nine silent connections, two more than its
+    listener's room of eight with the owner's two, are sometimes not all taken: two are neither accepted nor
+    refused, and the host holds them open until it gives up at 20 s, while the machine closes every one it took on
+    time. Never seen locally. Owed: what the stack does with a SYN for a listener without room and with the
+    retries after room is made, and a host test of it.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
