@@ -51,6 +51,16 @@ the old file, anything else at the new), exits 1 on any, 0 when compatible, 2 on
 `idlc/tests/versioning.rs` (`additive_only`, `version_skew`). `tools/check-protocols.sh` runs it against the shipped
 protocols.
 
+A retirement (the last step of a staged migration before the first `stable` release, `spec/IDL.md` section 4) is
+checked by `check-compat --retire`: a method may be replaced by `reserved` at its ordinal, and a struct or enum
+removed; a method removed without its ordinal reserved is an error, and every other rule holds, so nothing changes
+unchecked beside the removal. A protocol is retired whole by reserving every method; its file is kept, and
+`tools/check-protocols.sh` refuses a published file that is gone (with the file gone a protocol of the same name
+could give the ordinals to other methods). Retirements are allowed before M9 only. Tests: `idlc/tests/versioning.rs`
+(`a_method_is_retired_into_its_reserved_ordinal`), `os/tools/tests/protocol_compat.sh`.
+An enum value a request carries and this version does not know is refused as an unknown field is
+(`DecodeError::UnknownValue`, status `unknown_field`); in a reply it stays `Unknown(raw)`.
+
 ## 4. Known-answer vectors for the wire format
 
 Round-trip tests cannot catch a symmetric layout error (big-endian on both encode and decode passed them all). So
@@ -64,7 +74,9 @@ Every later binding (libsys, C) reuses the vectors as its first conformance test
 1. **Object type check in decoding.** `Capability::object_type(&self) -> Option<&str>` returns the kernel object type
    the transport learned on receipt. A `cap<T>` whose capability reports another type is malformed
    (`malformed_request` for a request, `malformed_reply` for a reply); `endpoint<P>` checks only that it is an
-   Endpoint; `cap` is never checked.
+   Endpoint; `cap` is never checked. A typed field whose capability reports no type (`None`: the transport could
+   not tell) is malformed too (`DecodeError::CapTypeUntold`): it is not known to be what the field declares, and
+   a check that let it pass would fail open for exactly the capabilities nobody could inspect.
 2. **Move semantics.** `Capability` is not `Clone`, because kernel transfer moves capabilities.
    `Transport::call(&mut self, message: &mut [u8], len: usize, caps: CapList<C>, reply_caps: &mut CapList<C>)`
    takes the request's capabilities by value and writes the reply over `message`, one buffer per client (not the
@@ -82,9 +94,10 @@ Every later binding (libsys, C) reuses the vectors as its first conformance test
    `&mut Decoder<'a, '_, C>`.
 3. **Object type check:** a `cap<T>`, `endpoint<P>` or an `option` of one decodes through `Decoder::cap(Some(name))`;
    plain `cap` passes `None`; a mismatch is `DecodeError::CapType`.
-4. **No capability inside an `array` in generated Rust:** the generator rejects an `array<T>` whose `T` can carry a
-   capability (an array is a borrowed slice or a view, which cannot own moved capabilities); use up to four
-   `option<cap<T>>` fields. Array elements decode without capabilities.
+4. **No capability inside an `array`:** an `array<T>` whose `T` can carry a capability is refused by the language
+   (`spec/IDL.md` section 2, `idlc/src/check.rs`), so every backend inherits it: in Rust an array is a borrowed
+   slice or a view, which cannot own moved capabilities, and on the wire array elements decode without them. Use
+   up to four `option<cap<T>>` fields.
 5. **Derives:** a struct with `C` only through arrays gets hand-written `Clone`, `PartialEq` and `Debug` that do not
    require them of `C`; one that carries a capability derives them.
 6. **`dispatch(server, request, caps: CapList<C>, reply, reply_caps) -> usize`** always produces a reply:
