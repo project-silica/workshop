@@ -387,8 +387,15 @@ crash dumps (planned), and a service manager with a dependency graph and restart
   after use. The machine key is made on the machine: the loader keeps a machine secret in a non-volatile UEFI
   variable with boot-services access alone (made at the first boot), adds it to the boot archive in memory only, and
   the service manager makes each `key` service's key from it and wipes it; the image carries only `remote.owners`.
-  The firmware's runtime memory, which holds its copy of the variables, is handed to no program. Sealed storage
-  (TPM, M5) is what keeps it from the firmware's flash, which the device manager can reach.
+  It is made to last only from a seed with a source of randomness the loader trusts, and a store that cannot be read
+  is left as it is (that boot's secret alone). The firmware's runtime memory and the I/O it keeps for its runtime
+  services (its flash, where the variables are) are handed to no program: Silica calls no runtime service. What this
+  does not cover, until sealed storage and a signed, measured boot (M5): anything that runs before ExitBootServices
+  (firmware, an option ROM, another loader) can read the variable or plant one; a running system can plant a
+  variable of the name with runtime access, which the loader replaces (the machine's key then changes), or an
+  authenticated one it cannot replace, which leaves every boot with a secret of its own (the key changes each boot);
+  clearing the firmware's variables changes the key; and whoever can write the boot disk can replace the loader,
+  kernel or service manager and be given the secret at the next boot.
 - **Updates while running:** the caller writes the program into memory the service manager lends it (`program`),
   and `update` runs the service on it once checked as an ELF image; the service manager holds no one's program
   before that. A new program that fails before it serves (its runtime signals when it first waits for requests) is
