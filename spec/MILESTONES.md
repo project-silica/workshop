@@ -92,6 +92,11 @@ M3:
     and machine check have a stack each). Owed: a test that forces the windows they close (an NMI whose entry
     switches threads, an NMI inside the swapgs window, a machine check and an NMI together), which needs a test
     hook in the entry path (`harness`).
+15. Before devmgr lends a driver its registers, establish ownership of the whole mapped range, including padding
+    to a page. Check equal BARs on different functions, overlapping large BARs and overlap with firmware memory.
+    Read back a newly placed BAR before using its address.
+16. The boot chain at M5 must authenticate the archive and kernel options along with the executable images.
+    The test changes each input separately and requires the loader to name the refused input before starting it.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
@@ -102,11 +107,16 @@ the server image):
    the server image's idle memory.
 2. e1000e's checksum and TSO context descriptors.
 3. The 24 h soak under mixed load: memory and capabilities flat, no request failed.
-4. The remote service's machine key made on the machine at first boot and kept there (with M5's storage), the image
-   carrying only `remote.owners`.
+4. Remote's machine key now comes from the loader's boot-services-only UEFI variable. With M5's sealed storage
+   and authenticated boot, prove that changing the boot volume cannot expose the key and that changing firmware
+   variable access cannot replace the machine's identity undetected.
 5. Authenticated time (NTS); a DHCP-supplied server can still set the first clock within the sanity bounds.
    Duplicate-address probing (RFC 5227) before using a lease.
 6. TCP keepalive for idle connections.
+7. The manager sees remote as the caller for every owner. Give each authenticated owner a capability restricted
+   to that owner's services and methods, and have the manager enforce it. Exercise two owners with disjoint grants.
+8. The hosted HTTP load test on virtio-net lost two answers out of 640 (system run 45998606875).
+   Capture the stream state for a stalled request while other clients are still receiving answers.
 
 ## Exit tests
 
