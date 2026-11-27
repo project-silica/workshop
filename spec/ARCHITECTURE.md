@@ -30,8 +30,9 @@ below say what Silica uses instead.
    endpoint cannot take over someone else's session.
 6. **Untrusted bytes are decoded totally and shown inertly.** Parsers never panic and control characters never
    reach a terminal, because every boundary is an attack surface.
-7. **Fail closed and say why.** An unknown field, an unsupported feature or an unconfined device is refused or
-   reported by name, so nobody believes a promise that was not kept.
+7. **Fail closed and say why.** An unknown field, an unsupported feature or an unconfined device is refused by
+   name, so nobody believes a promise that was not kept. (A test image runs a device it cannot confine and says so:
+   the M3 exit test boots one on a machine without an IOMMU; a machine's image starts no such driver.)
 8. **Secrets live only where they are needed and are wiped after use**, so a component that leaks reveals no more
    than it holds.
 9. **A cost an adversary can trigger is a security bug, not a performance limit**, because the attacker chooses
