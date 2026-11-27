@@ -27,7 +27,7 @@ M3 (M4 is built ahead of it; both lists are open). What is built, and the eviden
 M3:
 
 1. The performance gaps in `os/bench/open.tsv`, each with what it waits for: the network round trip, boot (the
-   firmware's exit and the emulated IOMMU set-up, and the decision whether the metric counts them), transmit
+   firmware's exit and the emulated IOMMU set-up, and the owner's decision whether the metric counts them), transmit
    throughput, one cross-processor pair, the timer's median overshoot, the page fault, context switch and
    same-processor IPC. Timed runs need an idle host. (The instruction-count costs of the run-queue tree, scheduling
    contexts and the lock share are won back: every counted path is below its old best.)
