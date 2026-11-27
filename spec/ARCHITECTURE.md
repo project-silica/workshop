@@ -113,8 +113,10 @@ IPv4 beside IPv6.
 Syscall numbers are private and never called by applications. The stable contract is the IDL protocols in `idl/`
 (additive evolution, `spec/IDL.md` section 4) and `libsys`, mapped into every program. Before the first `stable`
 release (`spec/CI_RELEASE.md` section 8) protocols are provisional and replaced by staged migration: add the new one,
-move the provider and every consumer, remove the old one, each commit building. From the first `stable` release,
-nothing published is removed or changed. Reason: this lets the kernel be rewritten under running software.
+move the provider and every consumer, retire the old one (its methods reserved at their ordinals, its file kept, so
+no ordinal is ever given to another method), each commit building, and each step checked (`spec/IDL.md` section 4;
+retirements end at M9, no later than the first `stable` release). From the first `stable` release, nothing
+published is removed or changed. Reason: this lets the kernel be rewritten under running software.
 
 ## 5. Kernel contents
 
@@ -311,11 +313,17 @@ a packet filter, WireGuard, Wi-Fi.
 
 - **DHCP** is answered only from the chosen server and leases that cannot be used are refused. **ARP** learns only
   what it asked and never evicts the router for a stranger. **SNTP** asks with a random nonce from a random port and
-  believes an answer only when its times are possible, its round trip is under 1 s and, once set, it moves the clock
-  under 1000 s. A lease that changes ends the connections on the old address.
+  believes an answer only when its times are possible, its round trip is under 1 s and it moves the clock under
+  1000 s; a larger step, set clock or not, waits for a second answer that agrees, to another question and from
+  another server where the lease names more than one. Where only one is known, that guards against one wrong answer,
+  not against the server (or anyone on the path to it) answering both: authenticated time (NTS) is owed. The remote
+  service judges a first message's time by a clock that a step back does not move back. A lease that changes ends the
+  connections on the old address.
 - **TCP for programs** (`silica.net.Tcp`): a program lends memory once and names a block of it per connection; bytes
   travel in two byte streams in that block. What a program may do is in its capability, from its declaration: the
-  one port it may listen on (`listen=<port>`, `listen_granted` names none) and whether it may connect out (`connect`);
+  one port it may listen on (`listen=<port>`, `listen_granted` names none), or the one peer port it may connect to
+  (`connect=<port>`), and whether it may connect to any (`connect`). A capability names one port: a service that
+  listens on one and connects out to another is given a second capability to the stack for it;
   a port is the owner's to give, never the first claimant's, one declaration's alone (the service manager refuses a
   list that gives it twice), and anything else is refused `not_granted`. The stack never waits on a program;
   connections belong to the program that made them until TCP is done with them, a closed one included, and end when
@@ -389,7 +397,19 @@ crash dumps (planned), and a service manager with a dependency graph and restart
   replaced by the one before, however long it ran; one that has served is the service's program. `revert` returns to
   the boot archive's; `list` shows each program's BLAKE2s.
 - **Service manager scopes** (`silica.system.Manager`): `observe`, `control`, `update`, `power`, `logs`, carried in
-  each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them).
+  each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them). What
+  `control` and `update` reach is named too, by the caller's declaration (`controls=<service>,...`), and checked on
+  each call against the service it names (`silica_manifest::reaches`). For `control`, `*` is every service neither
+  `machine`, `secrets` nor `key`. For `update`, which runs a program the caller sends with everything its target holds,
+  `*` is every service that governs nothing beyond itself (no `machine`, `secrets`, `key`, `sets_time`, files, `controls=`,
+  `logs=`, provided protocol, or capability to the service manager, the device manager, the partitions or the
+  console): anything more is updated only where the caller's declaration names it, the image's author deciding that
+  the caller may hold what it holds; a `machine` service is never updated or reverted. A remote owner's line names
+  its scopes (none is no owner; only those remote passes on) and, with `control` or `update`, its `controls=` (each
+  name a service here); remote holds each owner to its line, an owner's `*` never reaching remote itself, and the
+  service manager holds remote to its declaration, which does not name remote: updating it is holding its key and
+  every scope, given to no owner. Owed: a capability per owner, minted by the service manager, so that it sees the
+  owner and not only remote.
 - **Server image:** `build_server_image` holds init, the boot services and the drivers, built without the `harness`
   feature, and nothing that tests the system: `server_image` boots it with every test hook's words on its command
   line and fails if one is obeyed or present in its files.
