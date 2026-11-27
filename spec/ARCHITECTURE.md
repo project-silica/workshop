@@ -391,7 +391,19 @@ crash dumps (planned), and a service manager with a dependency graph and restart
   replaced by the one before, however long it ran; one that has served is the service's program. `revert` returns to
   the boot archive's; `list` shows each program's BLAKE2s.
 - **Service manager scopes** (`silica.system.Manager`): `observe`, `control`, `update`, `power`, `logs`, carried in
-  each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them).
+  each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them). What
+  `control` and `update` reach is named too, by the caller's declaration (`controls=<service>,...`), and checked on
+  each call against the service it names (`silica_manifest::reaches`). For `control`, `*` is every service neither
+  `machine`, `secrets` nor `key`. For `update`, which runs a program the caller sends with everything its target holds,
+  `*` is every service that governs nothing beyond itself (no `machine`, `secrets`, `key`, `sets_time`, files, `controls=`,
+  `logs=`, provided protocol, or capability to the service manager, the device manager, the partitions or the
+  console): anything more is updated only where the caller's declaration names it, the image's author deciding that
+  the caller may hold what it holds; a `machine` service is never updated or reverted. A remote owner's line names
+  its scopes (none is no owner; only those remote passes on) and, with `control` or `update`, its `controls=` (each
+  name a service here); remote holds each owner to its line, an owner's `*` never reaching remote itself, and the
+  service manager holds remote to its declaration, which does not name remote: updating it is holding its key and
+  every scope, given to no owner. Owed: a capability per owner, minted by the service manager, so that it sees the
+  owner and not only remote.
 - **Server image:** `build_server_image` holds init, the boot services and the drivers, built without the `harness`
   feature, and nothing that tests the system: `server_image` boots it with every test hook's words on its command
   line and fails if one is obeyed or present in its files.
