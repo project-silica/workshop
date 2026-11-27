@@ -86,9 +86,8 @@ M3:
     held the owner's bytes (the host's sends, netd's receive window, virtio-net's receive queue), from a run that
     keeps netd's counters with the serial log.
 13. netd's TCP table has no host test: the listener without a backlog (what waits takes places the program paid
-    for) and the reset of an evicted handshake are seen only through guests. Owed: a host test of netd's TCP table,
-    and with it, at a program's bound, the handshake a new SYN evicts reset and its place given to that SYN at once
-    (today the evicted one holds its place until its reset is sent, so the SYN that evicted it is refused).
+    for), the reset of an evicted handshake and the place it gives the SYN that evicted it at once are seen only
+    through guests (`interop`'s `synflood`). Owed: a host test of netd's TCP table.
 14. The NMI findings of the review of the kernel's hot paths are built (an NMI from user mode is heard before the
     lock and lets NMIs in again; the paranoid entry compares the GS base with the processor's own; NMI, double fault
     and machine check have a stack each). Owed: a test that forces the windows they close (an NMI whose entry
