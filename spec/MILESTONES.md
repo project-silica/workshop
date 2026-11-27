@@ -103,6 +103,14 @@ M3:
     bounded by one thread object a waiter, but with no point to stop and resume, unlike revoke, delete, unmap and
     an address space's end (the 2026-11-27 audit's M12). Owed: a resumable walk, by a queue generation the IPC fast
     paths would pay for or a waiter list per slot, each measured with `bench.sh --only insns`.
+18. The 2026-11-27 audit's low findings not yet built: the service manager keeps every program hash `list` has
+    shown for good (32 bytes for each distinct program an `update` brings, as `list`'s reply borrows them for the
+    life of the system); a partition is numbered `disk << 8 | index`, so a disk on a PCI segment above 255 shares
+    its partitions' numbers with another disk (refuse such a disk's table by name, or widen the number);
+    `silica.system.Manager`'s handlers in the service manager and the device manager's client handlers have no
+    fuzzer; a driver restarted on `AGAIN` is bounded only by a client having opened it since it started; the
+    runtime heap's lock is held across system calls; logd copies log bytes one at a time; `describe` inspects each
+    slot three times.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
