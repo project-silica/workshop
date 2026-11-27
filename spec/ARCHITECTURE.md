@@ -384,7 +384,11 @@ crash dumps (planned), and a service manager with a dependency graph and restart
   only whole messages keep a session alive, for as long as that owner's line of `remote.owners` says
   (`idle=<seconds>`, an hour without); unproven connections get eight places, two per address, 10 s; each owner holds
   its own scopes, and what it sends for an update in remote's memory, bounded per owner. Keys and secrets are wiped
-  after use. The machine key ships in the image today; made on the machine at first boot is owed with storage (M5).
+  after use. The machine key is made on the machine: the loader keeps a machine secret in a non-volatile UEFI
+  variable with boot-services access alone (made at the first boot), adds it to the boot archive in memory only, and
+  the service manager makes each `key` service's key from it and wipes it; the image carries only `remote.owners`.
+  The firmware's runtime memory, which holds its copy of the variables, is handed to no program. Sealed storage
+  (TPM, M5) is what keeps it from the firmware's flash, which the device manager can reach.
 - **Updates while running:** the caller writes the program into memory the service manager lends it (`program`),
   and `update` runs the service on it once checked as an ELF image; the service manager holds no one's program
   before that. A new program that fails before it serves (its runtime signals when it first waits for requests) is
