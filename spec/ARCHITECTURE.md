@@ -389,7 +389,13 @@ crash dumps (planned), and a service manager with a dependency graph and restart
   replaced by the one before, however long it ran; one that has served is the service's program. `revert` returns to
   the boot archive's; `list` shows each program's BLAKE2s.
 - **Service manager scopes** (`silica.system.Manager`): `observe`, `control`, `update`, `power`, `logs`, carried in
-  each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them).
+  each service's badge from its declaration (`needs=<protocol>:<scope>+<scope>`) (`svcload` attacks them). What
+  `control` and `update` reach is named too, by the caller's declaration (`controls=<service>,...`; `*` is every
+  service neither `machine` nor `secrets`, which only their names reach), and checked on each call against the service
+  it names; a `machine` service is never updated or reverted. A remote owner's line names its scopes (none is no
+  owner) and, with `control` or `update`, its `controls=`; remote holds each owner to its line and the service
+  manager holds remote to its declaration. Owed: a capability per owner, minted by the service manager, so that it
+  sees the owner and not only remote.
 - **Server image:** `build_server_image` holds init, the boot services and the drivers, built without the `harness`
   feature, and nothing that tests the system: `server_image` boots it with every test hook's words on its command
   line and fails if one is obeyed or present in its files.
