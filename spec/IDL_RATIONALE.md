@@ -54,7 +54,10 @@ protocols.
 A retirement (the last step of a staged migration before the first `stable` release, `spec/IDL.md` section 4) is
 checked by `check-compat --retire`: a method may be replaced by `reserved` at its ordinal, and a struct or enum
 removed; a method removed without its ordinal reserved is an error, and every other rule holds, so nothing changes
-unchecked beside the removal. Test: `idlc/tests/versioning.rs` (`a_method_is_retired_into_its_reserved_ordinal`).
+unchecked beside the removal. A protocol is retired whole by reserving every method; its file is kept, and
+`tools/check-protocols.sh` refuses a published file that is gone (with the file gone a protocol of the same name
+could give the ordinals to other methods). Retirements are allowed before M9 only. Tests: `idlc/tests/versioning.rs`
+(`a_method_is_retired_into_its_reserved_ordinal`), `os/tools/tests/protocol_compat.sh`.
 An enum value a request carries and this version does not know is refused as an unknown field is
 (`DecodeError::UnknownValue`, status `unknown_field`); in a reply it stays `Unknown(raw)`.
 

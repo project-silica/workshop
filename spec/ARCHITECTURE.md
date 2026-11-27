@@ -113,8 +113,10 @@ IPv4 beside IPv6.
 Syscall numbers are private and never called by applications. The stable contract is the IDL protocols in `idl/`
 (additive evolution, `spec/IDL.md` section 4) and `libsys`, mapped into every program. Before the first `stable`
 release (`spec/CI_RELEASE.md` section 8) protocols are provisional and replaced by staged migration: add the new one,
-move the provider and every consumer, remove the old one, each commit building. From the first `stable` release,
-nothing published is removed or changed. Reason: this lets the kernel be rewritten under running software.
+move the provider and every consumer, retire the old one (its methods reserved at their ordinals, its file kept, so
+no ordinal is ever given to another method), each commit building, and each step checked (`spec/IDL.md` section 4;
+retirements end at M9, no later than the first `stable` release). From the first `stable` release, nothing
+published is removed or changed. Reason: this lets the kernel be rewritten under running software.
 
 ## 5. Kernel contents
 

@@ -70,8 +70,8 @@ payload.
 **Reply status**: 0 `ok` (payload is the result field list); 1 `error` (payload is the method's error enum
 value, encoded as a one-field list); 2 `unknown_method` (empty payload); 3 `malformed_request` (empty payload);
 4 `reply_too_large` (empty payload: the provider's reply did not fit the limits below,
-`spec/IDL_RATIONALE.md` section 5); 5 `unknown_field` (empty payload: the request carries a field the
-provider's version does not know, section 4, and nothing was done). Other values are malformed.
+`spec/IDL_RATIONALE.md` section 5); 5 `unknown_field` (empty payload: the request carries a field or an enum
+value the provider's version does not know, section 4, and nothing was done). Other values are malformed.
 
 **Payload**: the request parameters, the reply results, or the error, each encoded as a field list.
 
@@ -207,9 +207,13 @@ Before the first `stable` release a removal follows the staged migration in `spe
 section 4, and its last step is checked too: `silica-idlc check-compat --retire <old.idl> <new.idl>` accepts,
 besides additive changes, a method replaced by `reserved` at its ordinal (which it must be: the ordinal is never
 used again) and a struct or enum removed, and refuses everything else as `check-compat` does, so nothing else
-changes unchecked beside a removal. `tools/check-protocols.sh` checks with `--retire` while no `stable` release
-can exist (before M9, `spec/CI_RELEASE.md` section 9) and accepts a published protocol file removed then; from
-the first `stable` release nothing is removed.
+changes unchecked beside a removal. A protocol is retired whole by reserving every method: its file is never
+removed, so its ordinals are never given to other methods (a protocol of the same name could otherwise reuse
+them, and an old client would call something else). `tools/check-protocols.sh` checks with `--retire` before
+M9 and additive only from M9, and refuses a published file that is gone. Strictness begins at M9 whether or not
+a `stable` release exists by then: one comes no earlier than M9 and may come later (`spec/CI_RELEASE.md`
+section 9), so removals end no later than the first `stable` release, as `spec/ARCHITECTURE.md` section 4
+requires, and possibly before it.
 
 How skew is tolerated, by construction:
 
@@ -247,7 +251,7 @@ Generated client calls return either the reply, the method's declared error, or 
 | `unknown_method` | the provider does not implement the method (older provider) |
 | `malformed_request` | the provider rejected the request as malformed |
 | `reply_too_large` | the provider's reply exceeded the limits of section 3; it sent status 4 instead |
-| `unknown_field` | the request carried a field the provider's version does not know (an older provider); nothing was done |
+| `unknown_field` | the request carried a field or an enum value the provider's version does not know (an older provider); nothing was done |
 
 After `peer_gone` or `cancelled` the request may or may not have taken effect. Each method's doc comment states
 whether retrying is safe. Each protocol's doc comments state what the caller observes in the `revoked`,
