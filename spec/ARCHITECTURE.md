@@ -314,12 +314,16 @@ a packet filter, WireGuard, Wi-Fi.
 - **DHCP** is answered only from the chosen server and leases that cannot be used are refused. **ARP** learns only
   what it asked and never evicts the router for a stranger. **SNTP** asks with a random nonce from a random port and
   believes an answer only when its times are possible, its round trip is under 1 s and it moves the clock under
-  1000 s; a larger step, set clock or not, waits for a second answer to another question that agrees. A lease that
-  changes ends the connections on the old address.
+  1000 s; a larger step, set clock or not, waits for a second answer that agrees, to another question and from
+  another server where the lease names more than one. Where only one is known, that guards against one wrong answer,
+  not against the server (or anyone on the path to it) answering both: authenticated time (NTS) is owed. The remote
+  service judges a first message's time by a clock that a step back does not move back. A lease that changes ends the
+  connections on the old address.
 - **TCP for programs** (`silica.net.Tcp`): a program lends memory once and names a block of it per connection; bytes
   travel in two byte streams in that block. What a program may do is in its capability, from its declaration: the
   one port it may listen on (`listen=<port>`, `listen_granted` names none), or the one peer port it may connect to
-  (`connect=<port>`), and whether it may connect to any (`connect`);
+  (`connect=<port>`), and whether it may connect to any (`connect`). A capability names one port: a service that
+  listens on one and connects out to another is given a second capability to the stack for it;
   a port is the owner's to give, never the first claimant's, one declaration's alone (the service manager refuses a
   list that gives it twice), and anything else is refused `not_granted`. The stack never waits on a program;
   connections belong to the program that made them until TCP is done with them, a closed one included, and end when
