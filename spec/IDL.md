@@ -45,6 +45,10 @@ Semantic rules, each a compile error with file, line and column:
 - A struct may not contain itself, directly or through other structs (no recursive types).
 - `cap` is a capability of any object type; `cap<T>` one of type `T`; `endpoint<P>` an Endpoint capability whose
   provider speaks protocol `P`. `P` must resolve within the set of files compiled together.
+- No `array` element type carries a capability, at any depth (`cap`, `cap<T>`, `endpoint<P>`, or an `option` or
+  struct containing one): capabilities travel beside the bytes, in encoding order, and every decoder reads an
+  array's elements without them (section 3). A protocol uses up to four `option<cap<T>>` fields instead. The
+  rule is the language's, so every backend inherits it.
 - There are only call/reply methods. The kernel has no one-way message; events are long-poll methods or a
   `cap<Notification>` plus a ring on a `cap<Frame>`.
 
@@ -86,9 +90,11 @@ provider's version does not know, section 4, and nothing was done). Other values
 
 **Capabilities** never appear as bytes. They travel in the kernel message's capability transfer (C09), in a
 list next to the bytes. Capability indices must appear in encoding order 0, 1, 2, ... and every transferred
-capability must be referenced exactly once; otherwise the message is malformed. Generated decoding checks the
-object type of a `cap<T>` where the transport reports one (`Capability::object_type`), and that an `endpoint<P>` is
-an endpoint; a mismatch is malformed. The protocol of an `endpoint<P>` is a contract, not checked. Capabilities
+capability must be referenced exactly once; otherwise the message is malformed. Generated decoding checks that
+a `cap<T>` is of type `T` and an `endpoint<P>` an endpoint, by the type the transport reports
+(`Capability::object_type`); another type is malformed, and so is a capability whose type the transport cannot
+report, which is not known to be what the field declares. A plain `cap` takes any capability. The protocol of an
+`endpoint<P>` is a contract, not checked. Capabilities
 move: the sender gives them up when it sends (`spec/IDL_RATIONALE.md` section 5).
 
 **Limits**: a message is at most 4000 bytes including the header (what one kernel message carries; larger data travels in a shared Frame) and carries at most 4 capabilities; field lists
@@ -198,7 +204,12 @@ it increases (by any amount) when anything other than doc comments changed. `sil
 <new.idl>` enforces this: one `ERROR:` line with file, line and column per violation, exit 1 on any, 0 when
 compatible, 2 on a usage error (`spec/IDL_RATIONALE.md` section 3).
 Before the first `stable` release a removal follows the staged migration in `spec/ARCHITECTURE.md`
-section 4, bypassing the check for that one commit; a removed method's ordinal becomes `reserved` forever.
+section 4, and its last step is checked too: `silica-idlc check-compat --retire <old.idl> <new.idl>` accepts,
+besides additive changes, a method replaced by `reserved` at its ordinal (which it must be: the ordinal is never
+used again) and a struct or enum removed, and refuses everything else as `check-compat` does, so nothing else
+changes unchecked beside a removal. `tools/check-protocols.sh` checks with `--retire` while no `stable` release
+can exist (before M9, `spec/CI_RELEASE.md` section 9) and accepts a published protocol file removed then; from
+the first `stable` release nothing is removed.
 
 How skew is tolerated, by construction:
 
@@ -209,7 +220,9 @@ How skew is tolerated, by construction:
   Ignoring it would tell the caller that what it asked for (a narrower right, a limit, a mode) was done. If the
   body ends exactly between fields, the missing fields take their defaults (older peer). A body that ends inside a
   field is malformed.
-- An unknown enum value decodes to an `Unknown(raw)` variant in generated code; it is not malformed.
+- An unknown enum value in a reply decodes to an `Unknown(raw)` variant in generated code; it is not malformed.
+  In a request it is what an unknown field is, something this version cannot honour, and the request is
+  answered `unknown_field` with nothing done; a server never sees `Unknown` in a request.
 - An unknown method ordinal gets a reply with status `unknown_method`.
 - A reply carries the ordinal of its request. A request whose header is malformed gets `malformed_request` with the
   ordinal it carried, or 0 when it carried none; the provider answers every request, so its caller never waits on one.
@@ -255,6 +268,7 @@ whether retrying is safe. Each protocol's doc comments state what the caller obs
   `spec/IDL_RATIONALE.md` section 2, as amended by `spec/IDL_RATIONALE.md` section 5
   (capabilities are not `Clone` and move into `Transport::call`; `dispatch` cannot fail), and by
   `spec/IDL_RATIONALE.md` section 6 (encoding takes values by value, decoding takes the
-  capability list by value, and generation rejects an `array` whose element type can carry a capability).
+  capability list by value; an `array` whose element type can carry a capability is refused by the language,
+  section 2, before any backend).
 - Bindings are generated at build time by each consumer (`system/protocols/build.rs` runs `silica-idlc` over
   `idl/protocols`), never checked in.
