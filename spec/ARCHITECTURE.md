@@ -30,8 +30,9 @@ below say what Silica uses instead.
    endpoint cannot take over someone else's session.
 6. **Untrusted bytes are decoded totally and shown inertly.** Parsers never panic and control characters never
    reach a terminal, because every boundary is an attack surface.
-7. **Fail closed and say why.** An unknown field, an unsupported feature or an unconfined device is refused or
-   reported by name, so nobody believes a promise that was not kept.
+7. **Fail closed and say why.** An unknown field, an unsupported feature or an unconfined device is refused by
+   name, so nobody believes a promise that was not kept. (A test image runs a device it cannot confine and says so:
+   the M3 exit test boots one on a machine without an IOMMU; a machine's image starts no such driver.)
 8. **Secrets live only where they are needed and are wiped after use**, so a component that leaks reveals no more
    than it holds.
 9. **A cost an adversary can trigger is a security bug, not a performance limit**, because the attacker chooses
@@ -240,9 +241,10 @@ security policy.
 - **Speculation:** an address space can be isolated (`ASPACE_ISOLATED`): switches into and out of it flush the
   predictors and set STIBP and SSBD. A service declared `secrets` runs in one (`remote`, `entropy`); `Inspect`
   reports it. Meltdown-affected processors are refused unless the owner says `meltdown=accept`.
-- **Inspection:** `Inspect` (read right) reads slots, threads, interrupt lines and parked calls; the owner's tools use
-  the owner's capabilities, and there is no kernel debugger with authority of its own. Counts kept only for tests
-  (interrupts delivered and from afar) exist only in a test image's kernel.
+- **Inspection:** `Inspect` (read right) reads slots (and whether any capability derived from one still exists,
+  `INSPECT_DERIVED`: how a provider learns that everything it gave a holder is gone), threads, interrupt lines and
+  parked calls; the owner's tools use the owner's capabilities, and there is no kernel debugger with authority of
+  its own. Counts kept only for tests (interrupts delivered and from afar) exist only in a test image's kernel.
 - **HAL:** `kernel/arch/{x86_64,aarch64,riscv64}` behind one trait; aarch64 boots the same tests.
 
 **Programs.** A program is what its parent makes with `silica-proc` from one Untyped: CapSpace, address space, first
@@ -390,7 +392,18 @@ crash dumps (planned), and a service manager with a dependency graph and restart
   only whole messages keep a session alive, for as long as that owner's line of `remote.owners` says
   (`idle=<seconds>`, an hour without); unproven connections get eight places, two per address, 10 s; each owner holds
   its own scopes, and what it sends for an update in remote's memory, bounded per owner. Keys and secrets are wiped
-  after use. The machine key ships in the image today; made on the machine at first boot is owed with storage (M5).
+  after use. The machine key is made on the machine: the loader keeps a machine secret in a non-volatile UEFI
+  variable with boot-services access alone (made at the first boot), adds it to the boot archive in memory only, and
+  the service manager makes each `key` service's key from it and wipes it; the image carries only `remote.owners`.
+  It is made to last only from a seed with a source of randomness the loader trusts, and a store that cannot be read
+  is left as it is (that boot's secret alone). The firmware's runtime memory and the I/O it keeps for its runtime
+  services (its flash, where the variables are) are handed to no program: Silica calls no runtime service. What this
+  does not cover, until sealed storage and a signed, measured boot (M5): anything that runs before ExitBootServices
+  (firmware, an option ROM, another loader) can read the variable or plant one; a running system can plant a
+  variable of the name with runtime access, which the loader replaces (the machine's key then changes), or an
+  authenticated one it cannot replace, which leaves every boot with a secret of its own (the key changes each boot);
+  clearing the firmware's variables changes the key; and whoever can write the boot disk can replace the loader,
+  kernel or service manager and be given the secret at the next boot.
 - **Updates while running:** the caller writes the program into memory the service manager lends it (`program`),
   and `update` runs the service on it once checked as an ELF image; the service manager holds no one's program
   before that. A new program that fails before it serves (its runtime signals when it first waits for requests) is
