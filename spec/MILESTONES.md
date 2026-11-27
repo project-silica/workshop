@@ -35,12 +35,16 @@ M3:
    lookup (`blk_read4k_qd1`, `net_rtt`), the heap.
 3. `net_recovery` once took 656 ms against its 250 ms deadline under `--fast`; not reproduced in 420 recoveries.
    `netload` now says where a slow recovery's time goes.
-4. The hosted runs. The fast tier no longer fits the pre-merge job's 5 minutes on GitHub's runners for kernel,
-   system and os: it builds cold (the cache is saved only by a job that finishes, so one that times out never warms
-   it), builds the system twice (test and production images) and boots guests without KVM; it ran 4 minutes without
-   finishing a suite. The audit-3 pull requests were merged by the owner past protection on a local `--full`; until
-   this is fixed every pull request in those repositories is blocked. Also verify on the runner that aarch64
-   `smp_*` and systest finish (progress-judged timeouts).
+4. The hosted runs. The fast tier fits the pre-merge job again, as two jobs (`SILICA_SHARD`): on 2026-11-27 its two
+   halves took kernel 148 and 89 s, system 126 and 112 s, os 163 and 96 s of the 215 s each may. On the runner
+   aarch64's `smp_*` and systest finish (nightly 45820995808: `smp_stress` 316 s, `smp_revoke` 271 s, systest 914 s).
+   The nightly does not finish: Miri on kernel-core is some 47,000 s of processor time, its slowest tests an hour or
+   more each by the size of the machine they build (64 MiB zeroed and retyped under the interpreter), past what 6
+   hours on the runner's 4 processors holds (cancelled at 6 h on 2026-11-26). Owed: those tests' machines made as
+   small under Miri as what they show allows, as the queued-threads test already cuts its threads; then the other
+   failures of the last nightly that finished (2026-11-25: the ELF fuzzer's committed seeds below their coverage
+   floor, one error in 10,000 requests of `http_load_e1000e`, `interop`'s server never listening, `idle` needing
+   KVM statistics a hosted runner cannot give) on the next one that does.
 5. The capability proof: Kani verifies one copy and the exhaustive check covers revoke over bounded lists of frames
    and endpoints; a proof over operation sequences and the other destruction paths is owed.
 6. Placement (ARCHITECTURE.md, Placement), each stage the default only when it measures better at 1, 2, 8 and 64
@@ -83,6 +87,14 @@ M3:
     keeps netd's counters with the serial log.
 13. netd's TCP table has no host test: the listener without a backlog (what waits takes places the program paid
     for) and the reset of an evicted handshake are seen only through guests. Owed: a host test of netd's TCP table.
+14. Found by the review of the kernel's hot paths (2026-11-26), both older than it: an NMI taken in user mode may
+    leave by `sysret` when that entry switches to a thread that entered by a system call, and NMIs then stay
+    blocked until the processor's next `iret` (a panic's request to stop, an NMI, waits on a processor that only
+    makes system calls); and the NMI and machine-check entry decides whose GS base is loaded by its sign, which a
+    program can set to a kernel-half address with WRGSBASE (harmless while those handlers read no per-processor
+    data, which nothing enforces). Owed: the NMI's way out unblocks NMIs whatever thread runs next (an `iret` to
+    itself before scheduling), and the entry takes the kernel's GS base from where it knows it (its own stack's
+    top) instead of guessing, each with a test that injects the NMI (`nmi` in `inos-x86_64.txt`) where it breaks.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
