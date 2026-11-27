@@ -240,9 +240,10 @@ security policy.
 - **Speculation:** an address space can be isolated (`ASPACE_ISOLATED`): switches into and out of it flush the
   predictors and set STIBP and SSBD. A service declared `secrets` runs in one (`remote`, `entropy`); `Inspect`
   reports it. Meltdown-affected processors are refused unless the owner says `meltdown=accept`.
-- **Inspection:** `Inspect` (read right) reads slots, threads, interrupt lines and parked calls; the owner's tools use
-  the owner's capabilities, and there is no kernel debugger with authority of its own. Counts kept only for tests
-  (interrupts delivered and from afar) exist only in a test image's kernel.
+- **Inspection:** `Inspect` (read right) reads slots (and whether any capability derived from one still exists,
+  `INSPECT_DERIVED`: how a provider learns that everything it gave a holder is gone), threads, interrupt lines and
+  parked calls; the owner's tools use the owner's capabilities, and there is no kernel debugger with authority of
+  its own. Counts kept only for tests (interrupts delivered and from afar) exist only in a test image's kernel.
 - **HAL:** `kernel/arch/{x86_64,aarch64,riscv64}` behind one trait; aarch64 boots the same tests.
 
 **Programs.** A program is what its parent makes with `silica-proc` from one Untyped: CapSpace, address space, first
