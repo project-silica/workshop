@@ -87,14 +87,11 @@ M3:
     keeps netd's counters with the serial log.
 13. netd's TCP table has no host test: the listener without a backlog (what waits takes places the program paid
     for) and the reset of an evicted handshake are seen only through guests. Owed: a host test of netd's TCP table.
-14. Found by the review of the kernel's hot paths (2026-11-26), both older than it: an NMI taken in user mode may
-    leave by `sysret` when that entry switches to a thread that entered by a system call, and NMIs then stay
-    blocked until the processor's next `iret` (a panic's request to stop, an NMI, waits on a processor that only
-    makes system calls); and the NMI and machine-check entry decides whose GS base is loaded by its sign, which a
-    program can set to a kernel-half address with WRGSBASE (harmless while those handlers read no per-processor
-    data, which nothing enforces). Owed: the NMI's way out unblocks NMIs whatever thread runs next (an `iret` to
-    itself before scheduling), and the entry takes the kernel's GS base from where it knows it (its own stack's
-    top) instead of guessing, each with a test that injects the NMI (`nmi` in `inos-x86_64.txt`) where it breaks.
+14. The NMI findings of the review of the kernel's hot paths are built (an NMI from user mode is heard before the
+    lock and lets NMIs in again; the paranoid entry compares the GS base with the processor's own; NMI, double fault
+    and machine check have a stack each). Owed: a test that forces the windows they close (an NMI whose entry
+    switches threads, an NMI inside the swapgs window, a machine check and an NMI together), which needs a test
+    hook in the entry path (`harness`).
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
