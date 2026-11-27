@@ -86,7 +86,9 @@ M3:
     held the owner's bytes (the host's sends, netd's receive window, virtio-net's receive queue), from a run that
     keeps netd's counters with the serial log.
 13. netd's TCP table has no host test: the listener without a backlog (what waits takes places the program paid
-    for) and the reset of an evicted handshake are seen only through guests. Owed: a host test of netd's TCP table.
+    for) and the reset of an evicted handshake are seen only through guests. Owed: a host test of netd's TCP table,
+    and with it, at a program's bound, the handshake a new SYN evicts reset and its place given to that SYN at once
+    (today the evicted one holds its place until its reset is sent, so the SYN that evicted it is refused).
 14. The NMI findings of the review of the kernel's hot paths are built (an NMI from user mode is heard before the
     lock and lets NMIs in again; the paranoid entry compares the GS base with the processor's own; NMI, double fault
     and machine check have a stack each). Owed: a test that forces the windows they close (an NMI whose entry
@@ -97,6 +99,10 @@ M3:
     Read back a newly placed BAR before using its address.
 16. The boot chain at M5 must authenticate the archive and kernel options along with the executable images.
     The test changes each input separately and requires the loader to name the refused input before starting it.
+17. Removing a capability walks every waiter of its queue under every lock (`revoke_waiters`, from `clear_slot`):
+    bounded by one thread object a waiter, but with no point to stop and resume, unlike revoke, delete, unmap and
+    an address space's end (the 2026-11-27 audit's M12). Owed: a resumable walk, by a queue generation the IPC fast
+    paths would pay for or a waiter list per slot, each measured with `bench.sh --only insns`.
 
 M4 (built: DHCP, SNTP, the wall clock, TCP for programs, HTTP under load and over e1000e, the stack killed under
 load, packet parsers fuzzed, no periodic wake-ups, remote management, interop with Linux including hostile peers,
@@ -116,7 +122,8 @@ the server image):
 7. The manager sees remote as the caller for every owner. Give each authenticated owner a capability restricted
    to that owner's services and methods, and have the manager enforce it. Exercise two owners with disjoint grants.
 8. The hosted HTTP load test on virtio-net lost two answers out of 640 (system run 45998606875).
-   Capture the stream state for a stalled request while other clients are still receiving answers.
+   Capture the stream state for a stalled request while other clients are still receiving answers. A lead to check
+   first: `Tcp::sleep` keeps netd awake for a ring with bytes ready without marking that connection due.
 
 ## Exit tests
 
